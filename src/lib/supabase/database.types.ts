@@ -15,6 +15,7 @@ export interface Database {
           username: string | null
           full_name: string | null
           avatar_url: string | null
+          active_language: string | null
           streak_count: number
           total_xp: number
           created_at: string
@@ -25,6 +26,7 @@ export interface Database {
           username?: string | null
           full_name?: string | null
           avatar_url?: string | null
+          active_language?: string | null
           streak_count?: number
           total_xp?: number
           created_at?: string
@@ -35,6 +37,7 @@ export interface Database {
           username?: string | null
           full_name?: string | null
           avatar_url?: string | null
+          active_language?: string | null
           streak_count?: number
           total_xp?: number
           created_at?: string
