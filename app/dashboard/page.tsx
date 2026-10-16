@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/client'
+import SessionRunner from '@/components/modules/SessionRunner'
 import {
   Mic,
   Lock,
@@ -20,15 +21,13 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 
-const MODULES = [
+const MODULE_CONFIGS = [
   {
-    id: 'echo-shadowing',
+    id: 'shadowing',
     title: 'Echo-Shadowing',
     description: 'Master cadence and intonation matching through real-time audio repetition.',
     icon: Volume2,
     color: 'from-blue-500/20 to-indigo-500/20 text-blue-400 border-blue-500/30',
-    level: 'Level 1',
-    progress: '0/3 completed',
   },
   {
     id: 'circumlocution',
@@ -36,60 +35,104 @@ const MODULES = [
     description: 'Explain complex concepts instantly when missing target vocabulary words.',
     icon: Repeat,
     color: 'from-purple-500/20 to-pink-500/20 text-purple-400 border-purple-500/30',
-    level: 'Level 1',
-    progress: '0/3 completed',
   },
   {
-    id: 'conversational-ping-pong',
+    id: 'ping_pong',
     title: 'Conversational Ping-Pong',
     description: 'Maintain dynamic turn-taking rhythm under cognitive interruption.',
     icon: MessageSquare,
     color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30',
-    level: 'Level 1',
-    progress: '0/3 completed',
   },
   {
-    id: 'compressor-432',
+    id: 'compressor',
     title: '4/3/2 Compressor',
     description: 'Deliver escalating speech compression under time pressure: 4m -> 3m -> 2m.',
     icon: Timer,
     color: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30',
-    level: 'Level 1',
-    progress: '0/3 completed',
   },
 ]
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<any>(null)
+  const [moduleProgress, setModuleProgress] = useState<Record<string, any>>({})
+  const [dailyQuests, setDailyQuests] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedModule, setSelectedModule] = useState<any>(null)
+  const [isRunnerOpen, setIsRunnerOpen] = useState(false)
+
   const router = useRouter()
   const supabase = createClient()
 
-  useEffect(() => {
-    async function loadProfile() {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        router.push('/signup')
-        return
-      }
-
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profileError || !profileData || !profileData.active_language) {
-        router.push('/onboarding/language')
-        return
-      }
-
-      setProfile(profileData)
-      setLoading(false)
+  async function loadDashboardData() {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      router.push('/signup')
+      return
     }
 
-    loadProfile()
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profileData || !profileData.active_language) {
+      router.push('/onboarding/language')
+      return
+    }
+
+    setProfile(profileData)
+
+    // Fetch module progress
+    const { data: progressData } = await supabase
+      .from('module_progress')
+      .select('*')
+      .eq('user_id', user.id)
+
+    const progressMap: Record<string, any> = {}
+    if (progressData) {
+      progressData.forEach((p) => {
+        progressMap[p.module_id] = p
+      })
+    }
+    setModuleProgress(progressMap)
+
+    // Fetch today's daily quest
+    const today = new Date().toISOString().split('T')[0]
+    const { data: questData } = await supabase
+      .from('daily_quests')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single()
+
+    if (questData) {
+      setDailyQuests(questData)
+    }
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadDashboardData()
   }, [router, supabase])
+
+  const handleOpenModule = (mod: any) => {
+    if (mod.id === 'shadowing') {
+      router.push('/practice/shadowing')
+      return
+    }
+    if (mod.id === 'circumlocution') {
+      router.push('/practice/circumlocution')
+      return
+    }
+    setSelectedModule(mod)
+    setIsRunnerOpen(true)
+  }
+
+  const handleSessionCompleted = () => {
+    loadDashboardData()
+  }
 
   if (loading) {
     return (
@@ -101,6 +144,10 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  // Calculate total completed modules / daily quest count
+  const completedModulesCount = Object.values(moduleProgress).filter((p: any) => p.completed).length
+  const isOpenMicUnlocked = completedModulesCount >= 4 || (dailyQuests && dailyQuests.completed)
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-50 font-sans">
@@ -190,29 +237,31 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Blocked Open Mic Card */}
-        <div className="mb-12 p-6 sm:p-8 rounded-3xl bg-zinc-900/90 border border-zinc-800 relative overflow-hidden group hover:border-zinc-700 transition-all">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-rose-500/5 rounded-full blur-2xl pointer-events-none" />
+        {/* Open Mic Card (Unlocked or Locked) */}
+        <div className={`mb-12 p-6 sm:p-8 rounded-3xl bg-zinc-900/90 border relative overflow-hidden transition-all ${isOpenMicUnlocked ? 'border-emerald-500/50 hover:border-emerald-500' : 'border-zinc-800 group hover:border-zinc-700'}`}>
+          <div className={`absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 rounded-full blur-2xl pointer-events-none ${isOpenMicUnlocked ? 'bg-emerald-500/10' : 'bg-rose-500/5'}`} />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
             <div className="flex items-start gap-5">
-              <div className="h-14 w-14 rounded-2xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 shrink-0">
-                <Lock className="w-7 h-7 text-amber-400" />
+              <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center shrink-0 ${isOpenMicUnlocked ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>
+                {isOpenMicUnlocked ? <Mic className="w-7 h-7" /> : <Lock className="w-7 h-7 text-amber-400" />}
               </div>
               <div>
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-semibold mb-2">
-                  <Lock className="w-3 h-3" /> Locked Feature
+                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold mb-2 ${isOpenMicUnlocked ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/25 text-amber-400'}`}>
+                  {isOpenMicUnlocked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3" />}
+                  {isOpenMicUnlocked ? 'Unlocked & Ready' : 'Locked Feature'}
                 </div>
                 <h2 className="text-xl font-bold text-white mb-1">Open Mic (Free AI Chat)</h2>
                 <p className="text-zinc-400 text-sm">
-                  Complete 3 sessions across each module to unlock Open Mic
+                  {isOpenMicUnlocked ? 'Practice unscripted conversation with real-time AI feedback.' : 'Complete sessions across modules to unlock Open Mic'}
                 </p>
               </div>
             </div>
             <button
-              disabled
-              className="flex items-center justify-center gap-2 bg-zinc-800/50 border border-zinc-700/50 text-zinc-500 font-semibold px-6 py-3.5 rounded-2xl text-sm cursor-not-allowed"
+              onClick={() => isOpenMicUnlocked && router.push('/open-mic')}
+              disabled={!isOpenMicUnlocked}
+              className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-2xl text-sm transition-all ${isOpenMicUnlocked ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 cursor-pointer' : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-500 cursor-not-allowed'}`}
             >
-              Locked <Lock className="w-4 h-4" />
+              {isOpenMicUnlocked ? 'Launch Open Mic' : 'Locked'} {isOpenMicUnlocked ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -221,12 +270,18 @@ export default function DashboardPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white tracking-tight">Core Practice Modules</h2>
-            <span className="text-xs text-zinc-400 font-medium">Daily Target: 0/3 Completed</span>
+            <span className="text-xs text-zinc-400 font-medium">
+              Daily Quests: {((dailyQuests?.shadowing_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.circumlocution_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.ping_pong_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.compressor_count || 0) > 0 ? 1 : 0)}/4 Modules Today
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {MODULES.map((mod) => {
+            {MODULE_CONFIGS.map((mod) => {
               const IconComponent = mod.icon
+              const prog = moduleProgress[mod.id] || {}
+              const currentLevel = prog.current_level || 1
+              const completedSessions = prog.completed_sessions_in_level || 0
+
               return (
                 <div
                   key={mod.id}
@@ -239,10 +294,10 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="px-3 py-1 rounded-full bg-zinc-950 border border-zinc-800 text-xs font-semibold text-zinc-300">
-                          {mod.level}
+                          Level {currentLevel}
                         </span>
                         <span className="px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-xs font-semibold text-indigo-300">
-                          {mod.progress}
+                          {completedSessions}/15 completed
                         </span>
                       </div>
                     </div>
@@ -256,7 +311,7 @@ export default function DashboardPage() {
                   </div>
 
                   <button
-                    onClick={() => router.push(`/practice/${mod.id}`)}
+                    onClick={() => handleOpenModule(mod)}
                     className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-indigo-600 text-zinc-200 hover:text-white font-semibold py-3.5 px-4 rounded-2xl border border-zinc-700 hover:border-indigo-500 transition-all text-sm group/btn"
                   >
                     Start Session <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
@@ -267,6 +322,21 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Session Runner Modal */}
+      {selectedModule && (
+        <SessionRunner
+          module={selectedModule}
+          currentLevel={moduleProgress[selectedModule.id]?.current_level || 1}
+          currentSession={(moduleProgress[selectedModule.id]?.completed_sessions_in_level || 0) + 1}
+          isOpen={isRunnerOpen}
+          onClose={() => {
+            setIsRunnerOpen(false)
+            setSelectedModule(null)
+          }}
+          onCompleted={handleSessionCompleted}
+        />
+      )}
     </div>
   )
 }

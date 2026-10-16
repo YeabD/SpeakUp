@@ -50,6 +50,9 @@ export interface Database {
           id: string
           user_id: string
           module_id: string
+          current_level: number
+          completed_sessions_in_level: number
+          average_accuracy: number
           completed: boolean
           score: number | null
           created_at: string
@@ -59,6 +62,9 @@ export interface Database {
           id?: string
           user_id: string
           module_id: string
+          current_level?: number
+          completed_sessions_in_level?: number
+          average_accuracy?: number
           completed?: boolean
           score?: number | null
           created_at?: string
@@ -68,6 +74,9 @@ export interface Database {
           id?: string
           user_id?: string
           module_id?: string
+          current_level?: number
+          completed_sessions_in_level?: number
+          average_accuracy?: number
           completed?: boolean
           score?: number | null
           created_at?: string
@@ -79,7 +88,11 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          level_id: string
+          level_id: string | null
+          module_type: string | null
+          level_number: number | null
+          session_number: number | null
+          accuracy_score: number | null
           status: string
           transcript: string | null
           metrics: Json | null
@@ -89,7 +102,11 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          level_id: string
+          level_id?: string | null
+          module_type?: string | null
+          level_number?: number | null
+          session_number?: number | null
+          accuracy_score?: number | null
           status?: string
           transcript?: string | null
           metrics?: Json | null
@@ -99,7 +116,11 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          level_id?: string
+          level_id?: string | null
+          module_type?: string | null
+          level_number?: number | null
+          session_number?: number | null
+          accuracy_score?: number | null
           status?: string
           transcript?: string | null
           metrics?: Json | null
@@ -116,6 +137,10 @@ export interface Database {
           completed: boolean
           reward_xp: number
           date: string
+          shadowing_count: number
+          circumlocution_count: number
+          ping_pong_count: number
+          compressor_count: number
           created_at: string
         }
         Insert: {
@@ -125,6 +150,10 @@ export interface Database {
           completed?: boolean
           reward_xp?: number
           date?: string
+          shadowing_count?: number
+          circumlocution_count?: number
+          ping_pong_count?: number
+          compressor_count?: number
           created_at?: string
         }
         Update: {
@@ -134,6 +163,10 @@ export interface Database {
           completed?: boolean
           reward_xp?: number
           date?: string
+          shadowing_count?: number
+          circumlocution_count?: number
+          ping_pong_count?: number
+          compressor_count?: number
           created_at?: string
         }
         Relationships: []
