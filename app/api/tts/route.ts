@@ -1,105 +1,68 @@
 import { NextResponse } from 'next/server'
 
-// Helper to generate a valid silent/tone WAV buffer as a robust fallback
-function generateWavBuffer(durationSeconds = 2, sampleRate = 22050): ArrayBuffer {
-  const numChannels = 1
-  const bitsPerSample = 16
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8
-  const blockAlign = (numChannels * bitsPerSample) / 8
-  const dataSize = sampleRate * durationSeconds * (bitsPerSample / 8)
-  const chunkSize = 36 + dataSize
-
-  const buffer = new ArrayBuffer(44 + dataSize)
+const VOICES = new Set(['sarah', 'theo', 'megan', 'jack'])
+function write(view: DataView, offset: number, value: string) {
+  for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index))
+}
+function fallbackWav(text: string) {
+  const rate = 16000
+  const seconds = Math.max(3, Math.min(60, text.trim().split(/\s+/).length / 2.4))
+  const samples = Math.ceil(rate * seconds)
+  const buffer = new ArrayBuffer(44 + samples * 2)
   const view = new DataView(buffer)
-
-  // RIFF chunk descriptor
-  writeString(view, 0, 'RIFF')
-  view.setUint32(4, chunkSize, true)
-  writeString(view, 8, 'WAVE')
-
-  // FMT sub-chunk
-  writeString(view, 12, 'fmt ')
-  view.setUint32(16, 16, true) // SubChunk1Size (16 for PCM)
-  view.setUint16(20, 1, true) // AudioFormat (1 for PCM)
-  view.setUint16(22, numChannels, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, byteRate, true)
-  view.setUint16(32, blockAlign, true)
-  view.setUint16(34, bitsPerSample, true)
-
-  // Data sub-chunk
-  writeString(view, 36, 'data')
-  view.setUint32(40, dataSize, true)
-
-  // Write subtle sine wave tones so it's audible audio for reference
-  let offset = 44
-  const frequency = 440 // A4 note
-  for (let i = 0; i < sampleRate * durationSeconds; i++) {
-    const t = i / sampleRate
-    const sample = Math.sin(2 * Math.PI * frequency * t) * 0.2 * Math.exp(-t)
-    const intSample = Math.max(-1, Math.min(1, sample)) < 0 ? sample * 0x8000 : sample * 0x7fff
-    view.setInt16(offset, intSample, true)
-    offset += 2
+  write(view, 0, 'RIFF'); view.setUint32(4, 36 + samples * 2, true)
+  write(view, 8, 'WAVE'); write(view, 12, 'fmt ')
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true)
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+  write(view, 36, 'data'); view.setUint32(40, samples * 2, true)
+  for (let index = 0; index < samples; index += 1) {
+    const time = index / rate
+    const pulse = Math.floor(time * 2) % 2 === 0 ? 1 : 0
+    view.setInt16(44 + index * 2, Math.round(Math.sin(2 * Math.PI * 220 * time) * 0.03 * pulse * 0x7fff), true)
   }
-
   return buffer
 }
-
-function writeString(view: DataView, offset: number, string: string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i))
-  }
+function fallback(text: string, reason: string) {
+  const audio = fallbackWav(text)
+  return new NextResponse(audio, { headers: {
+    'Content-Type': 'audio/wav', 'Content-Length': String(audio.byteLength),
+    'Cache-Control': 'no-store', 'X-TTS-Fallback': 'web-speech', 'X-TTS-Fallback-Reason': reason,
+  } })
 }
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { text } = body
-
-    if (!text) {
-      return NextResponse.json({ error: 'Missing text for TTS synthesis' }, { status: 400 })
-    }
-
-    const speechmaticsKey = process.env.SPEECHMATICS_API_KEY
-
-    if (speechmaticsKey) {
-      try {
-        // Optional integration with Speechmatics TTS REST API if configured
-        const sttRes = await fetch('https://asr.api.speechmatics.com/v2/tts', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${speechmaticsKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text, voice: 'en-US-default' }),
-        })
-
-        if (sttRes.ok) {
-          const audioBuffer = await sttRes.arrayBuffer()
-          return new NextResponse(audioBuffer, {
-            headers: {
-              'Content-Type': 'audio/wav',
-              'Content-Length': audioBuffer.byteLength.toString(),
-            },
-          })
-        }
-      } catch (err) {
-        console.warn('Speechmatics TTS API call failed, falling back to synthesizer WAV:', err)
+    const text = typeof body.text === 'string' ? body.text.trim() : ''
+    const requestedVoice = typeof body.voice === 'string' ? body.voice.toLowerCase() : 'sarah'
+    const voice = VOICES.has(requestedVoice) ? requestedVoice : 'sarah'
+    if (!text) return NextResponse.json({ error: 'Missing text for TTS synthesis' }, { status: 400 })
+    const apiKey = process.env.SPEECHMATICS_API_KEY?.trim()
+    if (!apiKey) return fallback(text, 'missing-api-key')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch(`https://preview.tts.speechmatics.com/generate/${voice}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }), cache: 'no-store', signal: controller.signal,
+      })
+      if (!response.ok) {
+        console.error('Speechmatics TTS failed:', response.status, (await response.text()).slice(0, 300))
+        return fallback(text, `upstream-${response.status}`)
       }
-    }
-
-    // Default robust WAV synthesis fallback
-    const duration = Math.max(2, Math.min(6, Math.ceil(text.length / 12)))
-    const wavBuffer = generateWavBuffer(duration)
-
-    return new NextResponse(wavBuffer, {
-      headers: {
-        'Content-Type': 'audio/wav',
-        'Content-Length': wavBuffer.byteLength.toString(),
-      },
-    })
-  } catch (err: any) {
-    console.error('TTS route error:', err)
-    return NextResponse.json({ error: err.message || 'TTS Synthesis failed' }, { status: 500 })
+      const audio = await response.arrayBuffer()
+      if (audio.byteLength <= 44) return fallback(text, 'empty-audio')
+      return new NextResponse(audio, { headers: {
+        'Content-Type': response.headers.get('content-type') || 'audio/wav',
+        'Content-Length': String(audio.byteLength), 'Cache-Control': 'no-store',
+      } })
+    } catch (error) {
+      console.error('Speechmatics TTS request error:', error)
+      return fallback(text, error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'network-error')
+    } finally { clearTimeout(timeout) }
+  } catch (error) {
+    console.error('TTS route error:', error)
+    return NextResponse.json({ error: 'Invalid TTS request' }, { status: 400 })
   }
 }

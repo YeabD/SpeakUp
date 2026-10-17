@@ -126,6 +126,14 @@ export default function DashboardPage() {
       router.push('/practice/circumlocution')
       return
     }
+    if (mod.id === 'ping_pong') {
+      router.push('/practice/ping-pong')
+      return
+    }
+    if (mod.id === 'compressor') {
+      router.push('/practice/compressor')
+      return
+    }
     setSelectedModule(mod)
     setIsRunnerOpen(true)
   }

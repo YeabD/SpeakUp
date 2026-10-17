@@ -1,24 +1,34 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/client'
 import EchoShadowingStudio from '@/components/modules/EchoShadowingStudio'
-import { Mic, ArrowLeft, Loader2, Award, Zap, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react'
+
+interface CurriculumPrompt {
+  text: string
+  cefr: string
+  source: string
+}
 
 export default function ShadowingPracticePage() {
   const [loading, setLoading] = useState(true)
   const [currentLevel, setCurrentLevel] = useState(1)
   const [sessionNumber, setSessionNumber] = useState(1)
-  const [sentenceData, setSentenceData] = useState<any>(null)
+  const [sentenceData, setSentenceData] = useState<CurriculumPrompt | null>(null)
   const [referenceAudioUrl, setReferenceAudioUrl] = useState<string | null>(null)
+  const [useBrowserTtsFallback, setUseBrowserTtsFallback] = useState(false)
   const [fetchingPrompt, setFetchingPrompt] = useState(false)
 
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const audioUrlRef = useRef<string | null>(null)
+  const promptRequestRef = useRef(0)
 
-  async function loadInitialData() {
+  async function loadInitialData(isCancelled: () => boolean) {
     const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (isCancelled()) return
     if (userError || !user) {
       router.push('/signup')
       return
@@ -31,6 +41,7 @@ export default function ShadowingPracticePage() {
       .eq('user_id', user.id)
       .eq('module_id', 'shadowing')
       .single()
+    if (isCancelled()) return
 
     const level = progressData?.current_level || 1
     const completedSessions = progressData?.completed_sessions_in_level || 0
@@ -42,11 +53,14 @@ export default function ShadowingPracticePage() {
     await fetchRandomPromptAndTTS(level)
   }
 
-  async function fetchRandomPromptAndTTS(level: number) {
+  const fetchRandomPromptAndTTS = useCallback(async (level: number) => {
+    const requestId = ++promptRequestRef.current
     setFetchingPrompt(true)
     try {
       const res = await fetch(`/api/curriculum/random?level=${level}`)
-      const sentence = await res.json()
+      if (!res.ok) throw new Error('Unable to load a curriculum prompt')
+      const sentence: CurriculumPrompt = await res.json()
+      if (requestId !== promptRequestRef.current) return
       setSentenceData(sentence)
 
       const ttsRes = await fetch('/api/tts', {
@@ -55,29 +69,50 @@ export default function ShadowingPracticePage() {
         body: JSON.stringify({ text: sentence.text }),
       })
 
-      if (ttsRes.ok) {
-        const blob = await ttsRes.blob()
-        const audioUrl = URL.createObjectURL(blob)
-        setReferenceAudioUrl(audioUrl)
-      }
-    } catch (err) {
-      console.error('Error fetching curriculum prompt or TTS:', err)
-      setSentenceData({
-        text: 'The quick brown fox jumps over the lazy dog near the river bank.',
-        cefr: 'A1',
-        source: 'fallback_corpus',
+      if (!ttsRes.ok) throw new Error('Unable to synthesize reference audio')
+      const audioBuffer = await ttsRes.arrayBuffer()
+      if (requestId !== promptRequestRef.current) return
+      const audioBlob = new Blob([audioBuffer], {
+        type: ttsRes.headers.get('content-type') || 'audio/wav',
       })
+      const audioUrl = URL.createObjectURL(audioBlob)
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = audioUrl
+      setReferenceAudioUrl(audioUrl)
+      setUseBrowserTtsFallback(ttsRes.headers.get('x-tts-fallback') === 'web-speech')
+    } catch (err) {
+      if (requestId !== promptRequestRef.current) return
+      console.error('Error fetching curriculum prompt or TTS:', err)
+      setSentenceData((current) => current || {
+        text: 'Maya visits the library before lunch. She returns two books, greets the librarian, and asks for a story about her town. Then she finds a quiet chair beside the window, opens the book, and reads carefully while rain taps against the glass.',
+        cefr: 'A2',
+        source: 'client_fallback',
+      })
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = null
+      setReferenceAudioUrl(null)
+      setUseBrowserTtsFallback(true)
     } finally {
-      setFetchingPrompt(false)
-      setLoading(false)
+      if (requestId === promptRequestRef.current) {
+        setFetchingPrompt(false)
+        setLoading(false)
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
-    loadInitialData()
-  }, [router, supabase])
+    let cancelled = false
+    loadInitialData(() => cancelled)
+    return () => {
+      cancelled = true
+      promptRequestRef.current += 1
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+    }
+  }, [router, supabase, fetchRandomPromptAndTTS])
 
   const handleCompleteSession = async (accuracy: number) => {
+    if (accuracy < 75) return
+
     try {
       const res = await fetch('/api/sessions/complete', {
         method: 'POST',
@@ -111,7 +146,7 @@ export default function ShadowingPracticePage() {
 
   if (loading || fetchingPrompt) {
     return (
-      <div className="flex min-h-screen bg-slate-955 items-center justify-center text-slate-400 font-sans">
+      <div className="flex min-h-screen bg-slate-950 items-center justify-center text-slate-400 font-sans">
         <div className="flex items-center gap-3">
           <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
           <span className="text-sm font-semibold">Loading curriculum prompt & synthesizing TTS audio...</span>
@@ -142,7 +177,7 @@ export default function ShadowingPracticePage() {
 
           {/* Target Threshold Badge */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5" /> Passing Threshold: ≥ 70% Accuracy
+            <ShieldCheck className="w-3.5 h-3.5" /> Passing Threshold: ≥ 75% Accuracy
           </div>
         </div>
 
@@ -186,8 +221,8 @@ export default function ShadowingPracticePage() {
             levelNumber={currentLevel}
             sessionNumber={sessionNumber}
             referenceAudioUrl={referenceAudioUrl}
+            useBrowserTtsFallback={useBrowserTtsFallback}
             onNextSession={(acc) => handleCompleteSession(acc)}
-            onRetrySession={() => fetchRandomPromptAndTTS(currentLevel)}
           />
         )}
       </main>

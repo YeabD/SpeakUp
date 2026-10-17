@@ -21,13 +21,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid module_type' }, { status: 400 })
     }
 
+    const numericAccuracy = Number(accuracy_score)
+    if (!Number.isFinite(numericAccuracy) || numericAccuracy < 0 || numericAccuracy > 100) {
+      return NextResponse.json({ error: 'accuracy_score must be between 0 and 100' }, { status: 400 })
+    }
+    if (module_type === 'shadowing' && numericAccuracy < 75) {
+      return NextResponse.json(
+        { error: 'Shadowing sessions require a score of at least 75%' },
+        { status: 422 }
+      )
+    }
+
     // 1. Insert session record into level_sessions
     const { error: insertError } = await supabase.from('level_sessions').insert({
       user_id: user.id,
       module_type,
       level_number,
       session_number,
-      accuracy_score,
+      accuracy_score: numericAccuracy,
       status: 'completed',
     })
 
@@ -126,7 +137,7 @@ export async function POST(request: Request) {
     let current_level_val = level_number
 
     if (session_number === 15) {
-      if (average_accuracy >= 70.0) {
+      if (average_accuracy >= 75.0) {
         level_unlocked = true
         current_level_val = level_number + 1
       } else {
@@ -169,7 +180,7 @@ export async function POST(request: Request) {
     }
 
     // 6. Award XP to profile if session completed successfully
-    const xpGain = Math.round(accuracy_score / 2) // e.g., 80 accuracy -> 40 XP
+    const xpGain = Math.round(numericAccuracy / 2) // e.g., 80 accuracy -> 40 XP
     const { data: profileData } = await supabase
       .from('profiles')
       .select('total_xp')
