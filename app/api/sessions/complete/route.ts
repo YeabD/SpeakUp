@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
+import type { Database } from '@/src/lib/supabase/database.types'
+
+type DailyQuestInsert = Database['public']['Tables']['daily_quests']['Insert']
+type DailyQuestUpdate = Database['public']['Tables']['daily_quests']['Update']
+type CounterField = 'shadowing_count' | 'circumlocution_count' | 'ping_pong_count' | 'compressor_count'
 
 export async function POST(request: Request) {
   try {
@@ -25,9 +30,9 @@ export async function POST(request: Request) {
     if (!Number.isFinite(numericAccuracy) || numericAccuracy < 0 || numericAccuracy > 100) {
       return NextResponse.json({ error: 'accuracy_score must be between 0 and 100' }, { status: 400 })
     }
-    if (module_type === 'shadowing' && numericAccuracy < 75) {
+    if ((module_type === 'shadowing' || module_type === 'ping_pong') && numericAccuracy < 75) {
       return NextResponse.json(
-        { error: 'Shadowing sessions require a score of at least 75%' },
+        { error: `${module_type === 'shadowing' ? 'Shadowing' : 'Ping-pong'} sessions require a score of at least 75%` },
         { status: 422 }
       )
     }
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
       .eq('date', today)
       .single()
 
-    let counterField = 'shadowing_count'
+    let counterField: CounterField = 'shadowing_count'
     if (module_type === 'circumlocution') counterField = 'circumlocution_count'
     else if (module_type === 'ping_pong') counterField = 'ping_pong_count'
     else if (module_type === 'compressor') counterField = 'compressor_count'
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
 
     if (questFetchError || !existingQuest) {
       // Insert new daily quest record for today
-      const insertPayload: any = {
+      const insertPayload: DailyQuestInsert = {
         user_id: user.id,
         date: today,
         quest_type: 'daily_practice',
@@ -86,8 +91,8 @@ export async function POST(request: Request) {
         dailyQuestsUpdated = false
       }
     } else {
-      const currentCount = (existingQuest as any)[counterField] || 0
-      const updatePayload: any = {}
+      const currentCount = existingQuest[counterField] || 0
+      const updatePayload: DailyQuestUpdate = {}
       updatePayload[counterField] = currentCount + 1
 
       // Check if all module counters reach at least 1 (or desired daily goal)
@@ -202,8 +207,8 @@ export async function POST(request: Request) {
       completed_sessions_in_level,
       current_level: current_level_val,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('API /api/sessions/complete error:', err)
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal Server Error' }, { status: 500 })
   }
 }

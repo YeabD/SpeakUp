@@ -116,7 +116,7 @@ Rules:
     const aiReply = response.text?.trim() || baseTopic
 
     return NextResponse.json({ ai_reply: aiReply })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Ping-pong turn API error:', err)
     return NextResponse.json({
       ai_reply: 'That is quite fascinating! How does that usually affect your day-to-day routine?'

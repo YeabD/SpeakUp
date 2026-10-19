@@ -1,738 +1,467 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase/client'
 import {
-  Mic,
+  AlertTriangle,
   ArrowLeft,
-  Loader2,
-  Award,
-  Zap,
-  ShieldCheck,
-  RotateCcw,
   ArrowRight,
+  Check,
   CheckCircle2,
-  XCircle,
-  Volume2,
-  VolumeX,
-  Play,
-  Flame,
-  Clock,
+  Clock3,
+  Loader2,
+  Mic,
+  RotateCcw,
   Sparkles,
-  Activity,
-  Send
+  Square,
+  Volume2,
+  WandSparkles,
+  Zap,
 } from 'lucide-react'
+import { createClient } from '@/src/lib/supabase/client'
 
-type GameState =
-  | 'IDLE'
-  | 'AI_SPEAKING'
-  | 'LATENCY_COUNTDOWN'
-  | 'USER_SPEAKING'
-  | 'EVALUATING_VOLLEY'
-  | 'SESSION_COMPLETE'
-  | 'SESSION_FAULT'
+const RESPONSE_WINDOW_MS = 15_000
+const PASS_SCORE = 75
+const SESSIONS_PER_LEVEL = 15
+
+type Phase = 'loading' | 'ready' | 'ai_speaking' | 'recording' | 'evaluating' | 'result'
+type ConversationEntry = { role: 'ai' | 'user'; text: string }
+
+type Evaluation = {
+  score: number
+  is_passed: boolean
+  criteria_scores: { relevance: number; vocabulary: number; fluency: number; grammar: number }
+  relevance_feedback: string
+  filler_words_detected: Array<{ word: string; count: number }>
+  vocabulary_upgrades: Array<{ original_word: string; suggested_replacement: string; reason: string }>
+  grammar_errors: Array<{ mistake: string; correction: string; explanation: string }>
+  rephrased_ideal_sentence: string
+}
+
+interface RecognitionEventLike {
+  results: ArrayLike<{ isFinal: boolean; 0?: { transcript: string } }>
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: RecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
+
+const LEVEL_NAMES: Record<number, string> = {
+  1: 'Everyday Conversation',
+  2: 'Reactive Remarks',
+  3: 'Nuance & Counterpoints',
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function ScoreBar({ label, score, tone }: { label: string; score: number; tone: string }) {
+  const safeScore = clampScore(score)
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="font-semibold text-slate-300">{label}</span>
+        <span className="font-mono font-bold text-white">{safeScore}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+        <div className={`h-full rounded-full transition-all duration-700 ${tone}`} style={{ width: `${safeScore}%` }} />
+      </div>
+    </div>
+  )
+}
 
 export default function ConversationalPingPongPage() {
-  const [loading, setLoading] = useState(true)
-  const [currentLevel, setCurrentLevel] = useState(1)
-  const [sessionNumber, setSessionNumber] = useState(1)
-
-  // Game flow state
-  const [gameState, setGameState] = useState<GameState>('IDLE')
-  const [turnIndex, setTurnIndex] = useState(0)
-  const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([])
-  const [currentAIPrompt, setCurrentAIPrompt] = useState('')
-  const [userTranscript, setUserTranscript] = useState('')
-  const [isTTSPlaying, setIsTTSPlaying] = useState(false)
-
-  // Latency & Telemetry
-  const [aiEndedAt, setAiEndedAt] = useState<number>(0)
-  const [userStartedAt, setUserStartedAt] = useState<number>(0)
-  const [currentLatencyMs, setCurrentLatencyMs] = useState<number | null>(null)
-  const [latencies, setLatencies] = useState<number[]>([])
-  const [wpm, setWpm] = useState<number>(130)
-
-  // Session stats & verdict
-  const [verdictData, setVerdictData] = useState<{
-    success: boolean
-    averageLatency: number
-    accuracy: number
-    message: string
-    feedback: string
-  } | null>(null)
-
   const router = useRouter()
   const supabase = createClient()
+  const [phase, setPhase] = useState<Phase>('loading')
+  const [currentLevel, setCurrentLevel] = useState(1)
+  const [sessionNumber, setSessionNumber] = useState(1)
+  const [question, setQuestion] = useState('')
+  const [promptRevealed, setPromptRevealed] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [timeLeftMs, setTimeLeftMs] = useState(RESPONSE_WINDOW_MS)
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
+  const [speechUnavailable, setSpeechUnavailable] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle')
+  const [conversationHistory, setConversationHistory] = useState<ConversationEntry[]>([])
 
-  // Refs for audio and speech recognition
+  const phaseRef = useRef<Phase>('loading')
+  const transcriptRef = useRef('')
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const recognitionRef = useRef<any>(null)
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const [countdownTimeLeft, setCountdownTimeLeft] = useState<number>(4.0)
+  const audioUrlRef = useRef<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const deadlineRef = useRef(0)
+  const turnTokenRef = useRef(0)
+  const saveInFlightRef = useRef(false)
 
-  // Level rules configuration
-  const levelConfig = {
-    1: {
-      name: 'Predictable Questions & Starters',
-      targetRallies: 4,
-      windowSecs: 4.0,
-      starters: [
-        'Well, to be honest...',
-        'Generally speaking, I usually...',
-        'It really depends, but...'
-      ]
-    },
-    2: {
-      name: 'Unprompted Reactions & Remarks',
-      targetRallies: 5,
-      windowSecs: 2.5,
-      starters: []
-    },
-    3: {
-      name: 'Counter-Arguments & Nuance',
-      targetRallies: 6,
-      windowSecs: 1.5,
-      starters: []
-    }
-  }[currentLevel] || {
-    name: 'Predictable Questions & Starters',
-    targetRallies: 4,
-    windowSecs: 4.0,
-    starters: []
-  }
+  const transitionTo = useCallback((nextPhase: Phase) => {
+    phaseRef.current = nextPhase
+    setPhase(nextPhase)
+  }, [])
 
-  // Load user progress & initialize session
-  async function loadInitialData() {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      router.push('/signup')
-      return
-    }
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = null
+  }, [])
 
-    const { data: progressData } = await supabase
-      .from('module_progress')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('module_id', 'ping_pong')
-      .single()
-
-    const level = progressData?.current_level || 1
-    const completedSessions = progressData?.completed_sessions_in_level || 0
-    const session = completedSessions + 1
-
-    setCurrentLevel(level)
-    const activeSession = session > 15 ? 15 : session
-    setSessionNumber(activeSession)
-
-    startNewRally(level, activeSession, 0, [])
-  }
-
-  async function startNewRally(level: number, session: number, tIdx: number, history: Array<{ role: 'ai' | 'user'; text: string }>) {
-    setLoading(true)
-    setTurnIndex(tIdx)
-    setUserTranscript('')
-    setCurrentLatencyMs(null)
-    setVerdictData(null)
-
+  const stopRecognition = useCallback((abort = false) => {
+    const recognition = recognitionRef.current
+    recognitionRef.current = null
+    if (!recognition) return
+    recognition.onresult = null
+    recognition.onend = null
+    recognition.onerror = null
     try {
-      const res = await fetch('/api/ping-pong/turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          level_number: level,
-          session_number: session,
-          turn_index: tIdx,
-          conversation_history: history,
-          user_last_input: history.length > 0 ? history[history.length - 1].text : ''
-        })
-      })
-
-      const data = await res.json()
-      const aiText = data.ai_reply || 'Could you elaborate on your thoughts?'
-      setCurrentAIPrompt(aiText)
-
-      // Synthesize TTS & Play
-      await playAITTS(aiText, level, history, tIdx)
-    } catch (err) {
-      console.error('Failed to fetch AI turn:', err)
-      const fallback = 'That is quite fascinating! How does that affect your daily routine?'
-      setCurrentAIPrompt(fallback)
-      await playAITTS(fallback, level, history, tIdx)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function playAITTS(text: string, level: number, history: Array<{ role: 'ai' | 'user'; text: string }>, tIdx: number) {
-    setGameState('AI_SPEAKING')
-    setIsTTSPlaying(true)
-
-    try {
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
-
-      if (ttsRes.ok) {
-        const blob = await ttsRes.blob()
-        const audioUrl = URL.createObjectURL(blob)
-        if (audioRef.current) {
-          audioRef.current.pause()
-        }
-        const audio = new Audio(audioUrl)
-        audioRef.current = audio
-
-        audio.onended = () => {
-          setIsTTSPlaying(false)
-          triggerLatencyCountdown(level, text, history, tIdx)
-        }
-        audio.onerror = () => {
-          setIsTTSPlaying(false)
-          triggerLatencyCountdown(level, text, history, tIdx)
-        }
-
-        await audio.play().catch(() => {
-          setIsTTSPlaying(false)
-          triggerLatencyCountdown(level, text, history, tIdx)
-        })
-      } else {
-        setIsTTSPlaying(false)
-        setTimeout(() => triggerLatencyCountdown(level, text, history, tIdx), 1500)
-      }
-    } catch (e) {
-      setIsTTSPlaying(false)
-      setTimeout(() => triggerLatencyCountdown(level, text, history, tIdx), 1500)
-    }
-  }
-
-  function triggerLatencyCountdown(level: number, aiText: string, history: Array<{ role: 'ai' | 'user'; text: string }>, tIdx: number) {
-    const config = level === 1 ? { windowSecs: 4.0 } : level === 2 ? { windowSecs: 2.5 } : { windowSecs: 1.5 }
-    setGameState('LATENCY_COUNTDOWN')
-    setCountdownTimeLeft(config.windowSecs)
-    setAiEndedAt(performance.now())
-
-    // Start countdown timer interval
-    const intervalMs = 50
-    const decrement = intervalMs / 1000
-    let timeLeft = config.windowSecs
-
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-
-    countdownTimerRef.current = setInterval(() => {
-      timeLeft -= decrement
-      if (timeLeft <= 0) {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-        setCountdownTimeLeft(0)
-        // Fault: Timed out without user starting speech
-        handleSessionFault('Reaction window expired! Hesitation limit exceeded.')
-        return
-      }
-      setCountdownTimeLeft(Number(timeLeft.toFixed(1)))
-    }, intervalMs)
-
-    // Start Speech Recognition to listen for user's voice
-    startSpeechRecognition(aiText, history, tIdx, config.windowSecs * 1000)
-  }
-
-  function startSpeechRecognition(aiText: string, history: Array<{ role: 'ai' | 'user'; text: string }>, tIdx: number, windowLimitMs: number) {
-    const windowWithSpeech = window as any
-    const SpeechRecognition = windowWithSpeech.SpeechRecognition || windowWithSpeech.webkitSpeechRecognition
-
-    if (!SpeechRecognition) {
-      // Fallback simulation if SpeechRecognition not supported in browser
-      console.warn('SpeechRecognition API not available in browser. Simulating voice input.')
-      return
-    }
-
-    try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-
-      const recognition = new SpeechRecognition()
-      recognitionRef.current = recognition
-      recognition.continuous = true
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
-
-      let speechDetected = false
-
-      recognition.onresult = (event: any) => {
-        let interim = ''
-        let final = ''
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript
-          } else {
-            interim += event.results[i][0].transcript
-          }
-        }
-
-        const transcript = (final + ' ' + interim).trim()
-        if (transcript.length > 0 && !speechDetected) {
-          speechDetected = true
-          const startedAt = performance.now()
-          setUserStartedAt(startedAt)
-          const latency = Math.round(startedAt - aiEndedAt)
-
-          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-
-          // Check if latency exceeded allowed window
-          if (latency > windowLimitMs) {
-            try { recognition.stop() } catch {}
-            handleSessionFault(`Reaction too slow! Latency was ${(latency / 1000).toFixed(1)}s (Target < ${(windowLimitMs / 1000).toFixed(1)}s)`)
-            return
-          }
-
-          setCurrentLatencyMs(latency)
-          setGameState('USER_SPEAKING')
-        }
-
-        setUserTranscript(transcript)
-      }
-
-      recognition.onerror = (err: any) => {
-        console.warn('Speech recognition error:', err)
-      }
-
-      recognition.onend = () => {
-        // If user was speaking, evaluate volley after short pause or silence
-      }
-
-      recognition.start()
-    } catch (e) {
-      console.error('Failed to start speech recognition:', e)
-    }
-  }
-
-  function handleUserSubmitReturn(customText?: string) {
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-    }
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-
-    const finalTranscript = customText !== undefined ? customText : userTranscript
-    if (!finalTranscript.trim()) {
-      handleSessionFault('No response recorded.')
-      return
-    }
-
-    const latency = currentLatencyMs || Math.round(performance.now() - aiEndedAt)
-    const newLatencies = [...latencies, latency]
-    setLatencies(newLatencies)
-
-    const newHistory = [
-      ...conversationHistory,
-      { role: 'ai' as const, text: currentAIPrompt },
-      { role: 'user' as const, text: finalTranscript }
-    ]
-    setConversationHistory(newHistory)
-
-    // Check if target rallies completed
-    const target = levelConfig.targetRallies
-    const nextTurn = turnIndex + 1
-
-    if (nextTurn >= target) {
-      // Session Success!
-      handleSessionSuccess(newLatencies, newHistory)
-    } else {
-      // Continue next volley
-      startNewRally(currentLevel, sessionNumber, nextTurn, newHistory)
-    }
-  }
-
-  function handleSessionFault(reason: string) {
-    setGameState('SESSION_FAULT')
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-    }
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    if (audioRef.current) audioRef.current.pause()
-
-    setVerdictData({
-      success: false,
-      averageLatency: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 2500,
-      accuracy: 45,
-      message: reason,
-      feedback: 'Rally dropped due to hesitation or latency window expiration. Stay sharp on conversational pacing!'
-    })
-  }
-
-  async function handleSessionSuccess(finalLatencies: number[], finalHistory: Array<{ role: 'ai' | 'user'; text: string }>) {
-    setGameState('SESSION_COMPLETE')
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
-    }
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-
-    const avgLat = Math.round(finalLatencies.reduce((a, b) => a + b, 0) / finalLatencies.length)
-    // Calculate accuracy based on average latency vs target window
-    const targetLimitMs = currentLevel === 1 ? 4000 : currentLevel === 2 ? 2500 : 1500
-    const accuracy = Math.max(60, Math.min(100, Math.round(100 - ((avgLat / targetLimitMs) * 35))))
-
-    const verdict = {
-      success: true,
-      averageLatency: avgLat,
-      accuracy,
-      message: `${levelConfig.targetRallies}/${levelConfig.targetRallies} Volleys Completed Successfully!`,
-      feedback: currentLevel === 1
-        ? 'Great cadence! Effective use of starter phrases for smooth conversational entry.'
-        : currentLevel === 2
-        ? 'Excellent reactive agility! Natural acknowledgers used before expanding ideas.'
-        : 'Masterful conversational fencing! Lightning-fast reaction speed with balanced concession markers.'
-    }
-    setVerdictData(verdict)
-
-    // Post to API session complete
-    try {
-      await fetch('/api/sessions/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          module_type: 'ping_pong',
-          level_number: currentLevel,
-          session_number: sessionNumber,
-          accuracy_score: accuracy
-        })
-      })
-    } catch (err) {
-      console.error('Failed to record session completion:', err)
-    }
-  }
-
-  function handleStarterChipClick(chip: string) {
-    if (gameState === 'LATENCY_COUNTDOWN' || gameState === 'USER_SPEAKING') {
-      const combined = `${chip} ${userTranscript}`.trim()
-      setUserTranscript(combined)
-      if (gameState === 'LATENCY_COUNTDOWN') {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-        const startedAt = performance.now()
-        setUserStartedAt(startedAt)
-        const latency = Math.round(startedAt - aiEndedAt)
-        setCurrentLatencyMs(latency)
-        setGameState('USER_SPEAKING')
-      }
-    }
-  }
-
-  useEffect(() => {
-    loadInitialData()
-    return () => {
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-      if (audioRef.current) audioRef.current.pause()
+      if (abort) recognition.abort()
+      else recognition.stop()
+    } catch {
+      // The browser may already have stopped recognition.
     }
   }, [])
 
-  if (loading && gameState === 'IDLE') {
-    return (
-      <div className="flex min-h-screen bg-slate-950 items-center justify-center text-slate-400 font-sans">
-        <div className="flex items-center gap-3">
-          <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
-          <span className="text-sm font-semibold">Initializing Conversational Ping-Pong Reactivity Engine...</span>
-        </div>
-      </div>
-    )
+  const stopAudio = useCallback(() => {
+    const audio = audioRef.current
+    audioRef.current = null
+    if (audio) {
+      audio.onended = null
+      audio.onerror = null
+      audio.pause()
+    }
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+    audioUrlRef.current = null
+  }, [])
+
+  const prepareQuestion = useCallback(async (level: number, session: number, history: ConversationEntry[], token: number) => {
+    const response = await fetch('/api/ping-pong/turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        level_number: level,
+        session_number: session,
+        turn_index: history.filter((entry) => entry.role === 'user').length,
+        conversation_history: history,
+        user_last_input: history.at(-1)?.role === 'user' ? history.at(-1)?.text : '',
+      }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error ?? 'Unable to prepare the next volley.')
+    if (turnTokenRef.current !== token) return
+    setQuestion(String(data.ai_reply || 'What is one small change that would improve your daily routine?'))
+    setPromptRevealed(false)
+    setTranscript('')
+    transcriptRef.current = ''
+    setTimeLeftMs(RESPONSE_WINDOW_MS)
+    setEvaluation(null)
+    setErrorMessage('')
+    setSaveState('idle')
+    saveInFlightRef.current = false
+    transitionTo('ready')
+  }, [transitionTo])
+
+  const resetVolley = useCallback(() => {
+    turnTokenRef.current += 1
+    clearTimer()
+    stopRecognition(true)
+    stopAudio()
+    setPromptRevealed(false)
+    setTranscript('')
+    transcriptRef.current = ''
+    setTimeLeftMs(RESPONSE_WINDOW_MS)
+    setEvaluation(null)
+    setErrorMessage('')
+    setSaveState('idle')
+    saveInFlightRef.current = false
+    transitionTo('ready')
+  }, [clearTimer, stopAudio, stopRecognition, transitionTo])
+
+  const finishSpeaking = useCallback(async (timedOut = false) => {
+    if (phaseRef.current !== 'recording') return
+    const token = turnTokenRef.current
+    transitionTo('evaluating')
+    clearTimer()
+    stopRecognition()
+    setTimeLeftMs(timedOut ? 0 : Math.max(0, deadlineRef.current - performance.now()))
+
+    try {
+      const response = await fetch('/api/ping-pong/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, transcript: transcriptRef.current.trim(), timed_out: timedOut }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'The response could not be evaluated.')
+      if (turnTokenRef.current !== token) return
+      setEvaluation(data as Evaluation)
+      transitionTo('result')
+    } catch (error) {
+      if (turnTokenRef.current !== token) return
+      console.error('Ping-pong evaluation failed:', error)
+      setErrorMessage(error instanceof Error ? error.message : 'The response could not be evaluated.')
+      transitionTo('result')
+    }
+  }, [clearTimer, question, stopRecognition, transitionTo])
+
+  const startResponseWindow = useCallback((token: number) => {
+    if (turnTokenRef.current !== token || phaseRef.current !== 'ai_speaking') return
+    stopAudio()
+    transcriptRef.current = ''
+    setTranscript('')
+    setTimeLeftMs(RESPONSE_WINDOW_MS)
+    setSpeechUnavailable(false)
+    transitionTo('recording')
+    deadlineRef.current = performance.now() + RESPONSE_WINDOW_MS
+
+    const speechWindow = window as typeof window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition
+    if (!Recognition) {
+      setSpeechUnavailable(true)
+    } else {
+      try {
+        const recognition = new Recognition()
+        recognitionRef.current = recognition
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = 'en-US'
+        recognition.onresult = (event) => {
+          if (turnTokenRef.current !== token || phaseRef.current !== 'recording') return
+          let nextTranscript = ''
+          for (let index = 0; index < event.results.length; index += 1) nextTranscript += `${event.results[index][0]?.transcript ?? ''} `
+          nextTranscript = nextTranscript.trim()
+          transcriptRef.current = nextTranscript
+          setTranscript(nextTranscript)
+        }
+        recognition.onend = () => {
+          if (recognitionRef.current === recognition) recognitionRef.current = null
+        }
+        recognition.onerror = () => {
+          if (recognitionRef.current !== recognition) return
+          recognitionRef.current = null
+          setSpeechUnavailable(true)
+        }
+        recognition.start()
+      } catch (error) {
+        console.warn('Speech recognition failed to start:', error)
+        recognitionRef.current = null
+        setSpeechUnavailable(true)
+      }
+    }
+
+    clearTimer()
+    timerRef.current = setInterval(() => {
+      const remaining = deadlineRef.current - performance.now()
+      if (remaining <= 0) {
+        clearTimer()
+        setTimeLeftMs(0)
+        void finishSpeaking(true)
+        return
+      }
+      setTimeLeftMs(remaining)
+    }, 100)
+  }, [clearTimer, finishSpeaking, stopAudio, transitionTo])
+
+  const startVolley = useCallback(async () => {
+    if (phaseRef.current !== 'ready' || !question) return
+    const token = turnTokenRef.current
+    setPromptRevealed(true)
+    setErrorMessage('')
+    transitionTo('ai_speaking')
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: question, voice: 'sarah' }),
+      })
+      if (!response.ok) throw new Error('Unable to read the prompt aloud.')
+      const blob = await response.blob()
+      if (turnTokenRef.current !== token) return
+      const audioUrl = URL.createObjectURL(blob)
+      audioUrlRef.current = audioUrl
+      const audio = new Audio(audioUrl)
+      audioRef.current = audio
+      let responseWindowStarted = false
+      const handleAudioEnd = () => {
+        if (responseWindowStarted) return
+        responseWindowStarted = true
+        startResponseWindow(token)
+      }
+      audio.onended = handleAudioEnd
+      audio.onerror = handleAudioEnd
+      await audio.play().catch(handleAudioEnd)
+    } catch (error) {
+      console.warn('Prompt audio failed:', error)
+      startResponseWindow(token)
+    }
+  }, [question, startResponseWindow, transitionTo])
+
+  const handleNextSession = useCallback(async () => {
+    if (!evaluation?.is_passed || evaluation.score < PASS_SCORE || saveInFlightRef.current) return
+    saveInFlightRef.current = true
+    setSaveState('saving')
+    try {
+      const response = await fetch('/api/sessions/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module_type: 'ping_pong', level_number: currentLevel, session_number: sessionNumber, accuracy_score: evaluation.score }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'Unable to save this session.')
+      const completedHistory: ConversationEntry[] = [
+        ...conversationHistory,
+        { role: 'ai', text: question },
+        { role: 'user', text: transcriptRef.current },
+      ]
+      setConversationHistory(completedHistory)
+      if (sessionNumber >= SESSIONS_PER_LEVEL) {
+        router.push('/dashboard')
+        return
+      }
+      const nextSession = sessionNumber + 1
+      setSessionNumber(nextSession)
+      setPromptRevealed(false)
+      transitionTo('loading')
+      turnTokenRef.current += 1
+      const nextToken = turnTokenRef.current
+      try {
+        await prepareQuestion(currentLevel, nextSession, completedHistory, nextToken)
+      } catch (error) {
+        console.error('Failed to prepare the next ping-pong prompt:', error)
+        if (turnTokenRef.current !== nextToken) return
+        setQuestion('What is one recent experience that changed the way you think?')
+        setTranscript('')
+        transcriptRef.current = ''
+        setTimeLeftMs(RESPONSE_WINDOW_MS)
+        setEvaluation(null)
+        setSaveState('idle')
+        saveInFlightRef.current = false
+        transitionTo('ready')
+      }
+    } catch (error) {
+      console.error('Failed to save ping-pong session:', error)
+      saveInFlightRef.current = false
+      setSaveState('error')
+    }
+  }, [conversationHistory, currentLevel, evaluation, prepareQuestion, question, router, sessionNumber, transitionTo])
+
+  useEffect(() => {
+    let active = true
+    const token = ++turnTokenRef.current
+    async function initialize() {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (!active) return
+        if (userError || !user) {
+          router.push('/signup')
+          return
+        }
+        const { data: progressData } = await supabase.from('module_progress').select('current_level, completed_sessions_in_level').eq('user_id', user.id).eq('module_id', 'ping_pong').single()
+        if (!active) return
+        const level = Math.min(3, Math.max(1, progressData?.current_level ?? 1))
+        const session = Math.min(SESSIONS_PER_LEVEL, (progressData?.completed_sessions_in_level ?? 0) + 1)
+        setCurrentLevel(level)
+        setSessionNumber(session)
+        await prepareQuestion(level, session, [], token)
+      } catch (error) {
+        if (!active) return
+        console.error('Failed to initialize ping-pong:', error)
+        setQuestion('What is one small change that would improve your daily routine?')
+        setErrorMessage('The live prompt service was unavailable, so a practice prompt was loaded instead.')
+        transitionTo('ready')
+      }
+    }
+    void initialize()
+    return () => {
+      active = false
+      turnTokenRef.current += 1
+      clearTimer()
+      stopRecognition(true)
+      stopAudio()
+    }
+  }, [clearTimer, prepareQuestion, router, stopAudio, stopRecognition, supabase, transitionTo])
+
+  const secondsLeft = timeLeftMs / 1000
+  const timerPercent = Math.max(0, Math.min(100, (timeLeftMs / RESPONSE_WINDOW_MS) * 100))
+  const timerTone = secondsLeft >= 8 ? 'text-indigo-400' : secondsLeft >= 3 ? 'text-amber-400' : 'text-rose-500'
+  const timerTrack = secondsLeft >= 8 ? 'stroke-indigo-500' : secondsLeft >= 3 ? 'stroke-amber-500' : 'stroke-rose-500'
+  const isBusy = phase === 'ai_speaking' || phase === 'recording' || phase === 'evaluating'
+
+  if (phase === 'loading' && !question) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400"><div className="flex items-center gap-3 text-sm font-semibold"><Loader2 className="h-5 w-5 animate-spin text-indigo-400" /> Preparing your next volley…</div></div>
   }
 
-  const averageLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0
-
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 font-sans">
-      {/* Top Header & Rally HUD */}
-      <header className="flex flex-col md:flex-row items-center justify-between px-6 lg:px-16 py-4 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md sticky top-0 z-50 gap-4">
-        {/* Left: Back & Badge */}
-        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </button>
-
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-            <Zap className="w-4 h-4 text-indigo-400" />
-            <span>Conversational Ping-Pong • Level {currentLevel}: {levelConfig.name}</span>
-          </div>
-        </div>
-
-        {/* Center: 15-Session Pill Bar */}
-        <div className="hidden xl:flex items-center gap-1.5">
-          {Array.from({ length: 15 }).map((_, i) => {
-            const num = i + 1
-            const isCompleted = num < sessionNumber
-            const isCurrent = num === sessionNumber
-            return (
-              <div
-                key={num}
-                title={`Session ${num}`}
-                className={`w-6 h-2 rounded-full transition-all ${
-                  isCompleted
-                    ? 'bg-emerald-500'
-                    : isCurrent
-                    ? 'bg-indigo-500 ring-2 ring-indigo-500/30 animate-pulse'
-                    : 'bg-slate-800'
-                }`}
-              />
-            )
-          })}
-          <span className="text-xs font-medium text-slate-400 ml-2">Session {sessionNumber}/15</span>
-        </div>
-
-        {/* Right: Rally Scoreboard Meter */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 shadow-inner">
-            <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>Rally: {turnIndex + 1} / {levelConfig.targetRallies} Volleys</span>
-          </div>
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <button type="button" onClick={() => { if (!isBusy || window.confirm('Leave this active volley? Your response will not be saved.')) router.push('/dashboard') }} className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-bold text-slate-400 transition hover:border-slate-700 hover:text-white"><ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Dashboard</span></button>
+          <div className="min-w-0 text-center"><p className="truncate text-sm font-black text-white sm:text-base">Conversational Ping-Pong</p><p className="text-[11px] text-slate-500">Level {currentLevel} · {LEVEL_NAMES[currentLevel] ?? LEVEL_NAMES[1]}</p></div>
+          <div className="min-w-[100px] text-right"><p className="text-xs font-bold text-slate-200">Session {sessionNumber} of {SESSIONS_PER_LEVEL}</p><div className="mt-1.5 flex justify-end gap-1" aria-hidden="true">{Array.from({ length: SESSIONS_PER_LEVEL }, (_, index) => index + 1).map((session) => <span key={session} className={`h-1.5 rounded-full ${session < sessionNumber ? 'w-2 bg-emerald-500' : session === sessionNumber ? 'w-4 bg-indigo-500' : 'w-1.5 bg-slate-800'}`} />)}</div></div>
         </div>
       </header>
 
-      {/* Main Content Arena */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-8 max-w-5xl mx-auto w-full">
-        {gameState === 'SESSION_COMPLETE' || gameState === 'SESSION_FAULT' ? (
-          /* Post-Session Performance Verdict Card */
-          <div className="w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className={`absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full blur-3xl pointer-events-none ${verdictData?.success ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`} />
+      <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-9">
+        <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/85 p-5 shadow-2xl shadow-black/20 sm:p-8">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="relative flex flex-wrap items-center justify-between gap-3"><div><span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/25 bg-indigo-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-300"><Zap className="h-3.5 w-3.5" /> AI serve</span><h1 className="mt-3 text-xl font-black text-white sm:text-2xl">Listen, respond, keep the volley alive.</h1></div><span className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-400">Pass mark: {PASS_SCORE}%</span></div>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className={`p-3 rounded-2xl border ${verdictData?.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
-                {verdictData?.success ? <Award className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
+          <div className="relative mt-6 rounded-2xl border border-slate-700/70 bg-slate-950/75 p-5 sm:p-7">
+            <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400"><Volume2 className={`h-4 w-4 ${phase === 'ai_speaking' ? 'animate-pulse text-indigo-300' : 'text-slate-500'}`} />{phase === 'ai_speaking' ? 'Reading the prompt' : 'Conversation prompt'}</div>{phase === 'ai_speaking' && <span className="text-xs font-bold text-indigo-300">Timer paused</span>}</div>
+            <div className="relative min-h-28">
+              <blockquote aria-hidden={!promptRevealed} className={`border-l-2 border-indigo-500 pl-4 text-lg font-semibold leading-relaxed text-white transition-all duration-500 sm:text-2xl ${promptRevealed ? 'filter-none opacity-100' : 'select-none blur-md opacity-60'}`}>“{question || 'Your conversation prompt is being prepared.'}”</blockquote>
+              {!promptRevealed && <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-slate-950/20"><div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-200">Prompt hidden</p><p className="mt-1 text-xs text-slate-400">Reveal it only when you are ready to listen.</p></div></div>}
+            </div>
+            {phase === 'ready' && <button type="button" onClick={() => void startVolley()} disabled={!question} className="mt-6 flex w-full animate-pulse items-center justify-center gap-2.5 rounded-2xl bg-indigo-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 disabled:cursor-wait disabled:opacity-50"><Volume2 className="h-5 w-5" /> Start Volley</button>}
+          </div>
+
+          <div className="relative mt-6 grid gap-5 lg:grid-cols-[180px_1fr]">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/75 p-5">
+              <div className={`relative h-32 w-32 ${secondsLeft < 3 && phase === 'recording' ? 'animate-pulse' : ''}`} role="timer" aria-label={`${secondsLeft.toFixed(1)} seconds remaining`}>
+                <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" strokeWidth="8" className="stroke-slate-800" /><circle cx="60" cy="60" r="52" fill="none" strokeWidth="8" strokeLinecap="round" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - timerPercent} className={`transition-all duration-100 ${timerTrack}`} /></svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center"><span className={`font-mono text-2xl font-black ${phase === 'recording' ? timerTone : 'text-slate-500'}`}>{secondsLeft.toFixed(1)}s</span><span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">response</span></div>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  {verdictData?.success ? 'Rally Completed Successfully!' : 'Rally Dropped (Fault)'}
-                </h2>
-                <p className="text-sm text-slate-400">{verdictData?.message}</p>
-              </div>
+              <p className="mt-3 text-center text-xs font-semibold text-slate-400">{phase === 'ready' ? 'Paused until Start Volley' : phase === 'ai_speaking' ? 'Paused while AI speaks' : phase === 'recording' ? 'Microphone active' : phase === 'evaluating' ? 'Timer frozen' : '15-second window'}</p>
             </div>
 
-            {/* Metrics Breakdown Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Accuracy Score</span>
-                <span className={`text-2xl font-bold ${verdictData?.success ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {verdictData?.accuracy}%
-                </span>
-              </div>
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Average Latency</span>
-                <span className="text-2xl font-bold text-indigo-400">
-                  {averageLatency}ms
-                </span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Target &lt; {levelConfig.windowSecs * 1000}ms</span>
-              </div>
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Volleys Completed</span>
-                <span className="text-2xl font-bold text-white">
-                  {turnIndex} / {levelConfig.targetRallies}
-                </span>
-              </div>
-            </div>
-
-            {/* Turn-by-Turn Latency Bar Visualizer */}
-            <div className="mb-8 bg-slate-950/80 border border-slate-800/80 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-400" /> Turn-by-Turn Reaction Latency (ms)
-              </h3>
-              <div className="flex items-end gap-3 h-28 pt-4 px-2 border-b border-slate-800">
-                {latencies.map((lat, idx) => {
-                  const maxLimit = levelConfig.windowSecs * 1000
-                  const heightPercent = Math.min(100, Math.max(15, (lat / maxLimit) * 100))
-                  const isGood = lat <= maxLimit
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                      <span className="text-[10px] text-slate-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity">{lat}ms</span>
-                      <div
-                        style={{ height: `${heightPercent}%` }}
-                        className={`w-full rounded-t-lg transition-all ${isGood ? 'bg-indigo-500 hover:bg-indigo-400' : 'bg-rose-500 hover:bg-rose-400'}`}
-                      />
-                      <span className="text-[11px] font-semibold text-slate-400">V{idx + 1}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Discourse & Transition Feedback */}
-            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-4 mb-8 flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-semibold text-indigo-300 mb-1">Discourse & Pacing Feedback</h4>
-                <p className="text-xs text-slate-300 leading-relaxed">{verdictData?.feedback}</p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-              <button
-                onClick={() => startNewRally(currentLevel, sessionNumber, 0, [])}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition-all cursor-pointer border border-slate-700"
-              >
-                <RotateCcw className="w-4 h-4" /> Retry Rally
-              </button>
-              <button
-                onClick={() => {
-                  if (sessionNumber < 15) {
-                    setSessionNumber(prev => prev + 1)
-                  }
-                  startNewRally(currentLevel, sessionNumber >= 15 ? 15 : sessionNumber + 1, 0, [])
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
-              >
-                <span>Next Session ({sessionNumber >= 15 ? 15 : sessionNumber + 1}/15)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/75 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${phase === 'recording' ? 'border-rose-500/40 bg-rose-500/15 text-rose-300 ring-4 ring-rose-500/10' : 'border-slate-700 bg-slate-800 text-slate-500'}`}><Mic className={`h-5 w-5 ${phase === 'recording' ? 'animate-pulse' : ''}`} /></div><div><h2 className="text-sm font-bold text-white">Your response</h2><p className="text-xs text-slate-500">{phase === 'recording' ? 'Speak naturally, then finish early if you are done.' : 'The microphone opens after the prompt audio ends.'}</p></div></div>{phase === 'recording' && <button type="button" onClick={() => void finishSpeaking(false)} className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-xs font-black text-white transition hover:bg-rose-500"><Square className="h-3.5 w-3.5 fill-current" /> Finish Speaking</button>}</div>
+              {speechUnavailable && phase === 'recording' && <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-400/5 p-3 text-xs text-amber-200">Browser speech recognition is unavailable. Type your response below before the same 15-second timer expires.</p>}
+              <textarea value={transcript} onChange={(event) => { const nextTranscript = event.target.value; transcriptRef.current = nextTranscript; setTranscript(nextTranscript) }} disabled={phase !== 'recording'} aria-label="Your response transcript" placeholder={phase === 'recording' ? 'Your words will appear here…' : 'Waiting for your response window…'} className="mt-4 h-32 w-full resize-none rounded-xl border border-slate-800 bg-slate-900 p-4 text-sm leading-relaxed text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500/50 disabled:cursor-default disabled:opacity-70" />
+              {phase === 'evaluating' && <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-sm font-bold text-indigo-200"><Loader2 className="h-4 w-4 animate-spin" /> Evaluating relevance, vocabulary, fluency, and grammar…</div>}
             </div>
           </div>
-        ) : (
-          /* Active Ping-Pong Volley Stage (Center Arena) */
-          <div className="w-full bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-            {/* Background ambient glow */}
-            <div className="absolute top-0 right-0 -mt-16 -mr-16 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-indigo-500/10" />
+        </section>
 
-            {/* AI Turn Side (The Serve) */}
-            <div className="mb-8 bg-slate-950/70 border border-slate-800/80 rounded-2xl p-6 relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${isTTSPlaying ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400 animate-pulse' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
-                    {isTTSPlaying ? <Volume2 className="w-5 h-5 animate-bounce" /> : <Play className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span>AI Conversation Partner</span>
-                      {isTTSPlaying && <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-normal">Speaking...</span>}
-                    </h3>
-                    <span className="text-xs text-slate-400">Volley #{turnIndex + 1} of {levelConfig.targetRallies}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => playAITTS(currentAIPrompt, currentLevel, conversationHistory, turnIndex)}
-                  disabled={isTTSPlaying}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <Volume2 className="w-3.5 h-3.5" /> Replay Serve
-                </button>
-              </div>
-
-              {/* AI Prompt Speech Bubble */}
-              <div className="text-lg sm:text-xl font-medium text-white leading-relaxed pl-3 border-l-2 border-indigo-500">
-                "{currentAIPrompt}"
-              </div>
+        {phase === 'result' && evaluation && (
+          <section className={`overflow-hidden rounded-3xl border p-5 shadow-2xl sm:p-8 ${evaluation.is_passed ? 'border-emerald-500/30 bg-emerald-950/15' : 'border-rose-500/25 bg-slate-900/90'}`} aria-live="polite">
+            <div className="grid gap-6 lg:grid-cols-[190px_1fr]">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/70 p-5 text-center"><div className={`flex h-28 w-28 items-center justify-center rounded-full border-8 ${evaluation.is_passed ? 'border-emerald-500/25 text-emerald-300' : 'border-rose-500/25 text-rose-300'}`}><span className="text-3xl font-black">{clampScore(evaluation.score)}%</span></div><span className={`mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${evaluation.is_passed ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>{evaluation.is_passed ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}{evaluation.is_passed ? 'Passed! Great response.' : 'Under 75% — Keep Practicing!'}</span></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Composite evaluation</p><h2 className="mt-2 text-2xl font-black text-white">{evaluation.is_passed ? 'Volley returned.' : 'Build a stronger return.'}</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">{evaluation.relevance_feedback}</p><div className="mt-6 grid gap-4 sm:grid-cols-3"><ScoreBar label="Relevance" score={evaluation.criteria_scores.relevance} tone="bg-indigo-500" /><ScoreBar label="Vocabulary" score={evaluation.criteria_scores.vocabulary} tone="bg-violet-500" /><ScoreBar label="Fluency" score={evaluation.criteria_scores.fluency} tone="bg-cyan-500" /></div></div>
             </div>
 
-            {/* Reaction Pressure Gauge (High-Stakes Countdown) */}
-            <div className="mb-8 bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-center relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-indigo-400" /> Reaction Latency Window ({levelConfig.windowSecs}s Limit)
-                </span>
-                <span className={`text-sm font-bold font-mono ${countdownTimeLeft > 2 ? 'text-indigo-400' : countdownTimeLeft > 1 ? 'text-amber-400' : 'text-rose-500 animate-pulse'}`}>
-                  {gameState === 'USER_SPEAKING' ? (
-                    <span className="text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> ✓ Lag: {currentLatencyMs || 0}ms
-                    </span>
-                  ) : gameState === 'AI_SPEAKING' ? (
-                    'AI Speaking...'
-                  ) : (
-                    `REACT NOW! ${countdownTimeLeft.toFixed(1)}s`
-                  )}
-                </span>
-              </div>
-
-              {/* Shrinking Progress Bar */}
-              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
-                <div
-                  style={{
-                    width: `${Math.max(0, Math.min(100, (countdownTimeLeft / levelConfig.windowSecs) * 100))}%`
-                  }}
-                  className={`h-full rounded-full transition-all duration-75 ${
-                    countdownTimeLeft > levelConfig.windowSecs * 0.5
-                      ? 'bg-indigo-500'
-                      : countdownTimeLeft > levelConfig.windowSecs * 0.25
-                      ? 'bg-amber-500'
-                      : 'bg-rose-500 animate-pulse'
-                  }`}
-                />
-              </div>
+            <div className="mt-6 grid gap-5 lg:grid-cols-2">
+              <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 lg:col-span-2"><h3 className="flex items-center gap-2 text-sm font-black text-white"><Sparkles className="h-4 w-4 text-indigo-300" /> What You Said vs. Native Polish</h3><div className="mt-4 grid gap-3 md:grid-cols-2"><div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Your response</p><p className="mt-2 text-sm leading-relaxed text-slate-300">{transcript || 'No response recorded.'}</p></div><div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Native polish</p><p className="mt-2 text-sm leading-relaxed text-indigo-100">{evaluation.rephrased_ideal_sentence}</p></div></div></article>
+              <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"><h3 className="flex items-center gap-2 text-sm font-black text-white"><WandSparkles className="h-4 w-4 text-violet-300" /> Vocabulary Upgrades</h3><div className="mt-4 space-y-3">{evaluation.vocabulary_upgrades.length > 0 ? evaluation.vocabulary_upgrades.map((upgrade, index) => <div key={`${upgrade.original_word}-${index}`} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3"><div className="flex flex-wrap items-center gap-2 text-xs font-bold"><span className="rounded-lg bg-rose-500/10 px-2 py-1 text-rose-200 line-through">{upgrade.original_word}</span><ArrowRight className="h-3.5 w-3.5 text-slate-600" /><span className="rounded-lg bg-emerald-500/10 px-2 py-1 text-emerald-200">{upgrade.suggested_replacement}</span></div><p className="mt-2 text-xs leading-relaxed text-slate-500">{upgrade.reason}</p></div>) : <p className="rounded-xl bg-slate-900/70 p-3 text-xs text-slate-500">Your vocabulary was already appropriately specific.</p>}</div></article>
+              <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"><h3 className="flex items-center gap-2 text-sm font-black text-white"><Clock3 className="h-4 w-4 text-amber-300" /> Grammar & Fillers</h3><div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Fillers detected</p><div className="mt-2 flex flex-wrap gap-2">{evaluation.filler_words_detected.length > 0 ? evaluation.filler_words_detected.map((filler) => <span key={filler.word} className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-200">{filler.word} × {filler.count}</span>) : <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-200">No fillers detected</span>}</div></div><div className="mt-5 space-y-3">{evaluation.grammar_errors.length > 0 ? evaluation.grammar_errors.map((item, index) => <div key={`${item.mistake}-${index}`} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-xs"><p className="text-rose-200"><span className="font-bold">Adjust:</span> {item.mistake}</p><p className="mt-1 text-emerald-200"><span className="font-bold">Use:</span> {item.correction}</p><p className="mt-2 leading-relaxed text-slate-500">{item.explanation}</p></div>) : <p className="rounded-xl bg-slate-900/70 p-3 text-xs text-slate-500">No material grammar adjustments were needed.</p>}</div></article>
             </div>
 
-            {/* User Turn Side (The Return) */}
-            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-6 relative mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${gameState === 'USER_SPEAKING' ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 animate-pulse ring-4 ring-rose-500/20' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                    <Mic className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Your Return (Spoken Response)</h3>
-                    <span className="text-xs text-slate-400">
-                      {gameState === 'USER_SPEAKING' ? 'Listening to your vocal response...' : gameState === 'AI_SPEAKING' ? 'Locked (Waiting for AI serve)' : 'Speak immediately to keep rally alive!'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleUserSubmitReturn()}
-                  disabled={!userTranscript.trim()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-semibold text-xs transition-all shadow-md cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <span>Send Return</span>
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Real-time Transcription Ticker */}
-              <div className="min-h-[90px] bg-slate-900 border border-slate-800 rounded-xl p-4 text-white text-base font-medium flex items-center">
-                {userTranscript ? (
-                  <span className="leading-relaxed">{userTranscript}</span>
-                ) : (
-                  <span className="text-slate-500 italic">
-                    {gameState === 'LATENCY_COUNTDOWN' ? 'Start speaking now into your microphone...' : 'Type or speak your conversational return...'}
-                  </span>
-                )}
-              </div>
-
-              {/* Level 1 Starter Chips Row */}
-              {currentLevel === 1 && levelConfig.starters.length > 0 && (
-                <div className="mt-4">
-                  <span className="text-xs font-semibold text-slate-400 block mb-2">Quick Starter Chips:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {levelConfig.starters.map((chip, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleStarterChipClick(chip)}
-                        className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-indigo-300 transition-colors cursor-pointer"
-                      >
-                        {chip}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Telemetry Strip */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-400" />
-                <span>Current Volley Latency: <strong className="text-white font-mono">{currentLatencyMs !== null ? `${currentLatencyMs}ms` : '---'}</strong></span>
-                <span className="text-slate-600">•</span>
-                <span>Average: <strong className="text-indigo-300 font-mono">{averageLatency}ms</strong></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span>Pace: <strong className="text-white font-mono">{wpm} WPM</strong></span>
-              </div>
-            </div>
-          </div>
+            {saveState === 'error' && <p className="mt-5 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-center text-xs text-rose-200">The passing score could not be saved. Try the Next Session button again.</p>}
+            <div className="mt-6 flex flex-col justify-end gap-3 sm:flex-row"><button type="button" onClick={resetVolley} className={`flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-black transition ${evaluation.is_passed ? 'border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-rose-600 text-white hover:bg-rose-500'}`}><RotateCcw className="h-4 w-4" /> Retry Volley</button>{evaluation.is_passed && <button type="button" onClick={() => void handleNextSession()} disabled={saveState === 'saving'} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-70">{saveState === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{saveState === 'saving' ? 'Saving…' : sessionNumber < SESSIONS_PER_LEVEL ? `Next Volley / Session (${sessionNumber + 1} of ${SESSIONS_PER_LEVEL})` : 'Finish Level'}{saveState !== 'saving' && <ArrowRight className="h-4 w-4" />}</button>}</div>
+          </section>
         )}
+
+        {phase === 'result' && !evaluation && <section className="rounded-3xl border border-rose-500/25 bg-slate-900 p-6 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-rose-300" /><h2 className="mt-3 text-lg font-black text-white">Evaluation unavailable</h2><p className="mt-1 text-sm text-slate-400">{errorMessage || 'Please retry this volley.'}</p><button type="button" onClick={resetVolley} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-rose-600 px-6 py-3 text-sm font-black text-white hover:bg-rose-500"><RotateCcw className="h-4 w-4" /> Retry Volley</button></section>}
       </main>
     </div>
   )
