@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-geist-sans: Arial, Helvetica, sans-serif;
+  --font-geist-mono: "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
 }
 
 @theme inline {
@@ -23,4 +25,64 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes circumlocution-slide-up-fade {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes circumlocution-wiggle {
+  0%, 72%, 100% { transform: rotate(0deg); }
+  78% { transform: rotate(-12deg); }
+  84% { transform: rotate(12deg); }
+  90% { transform: rotate(-7deg); }
+  96% { transform: rotate(5deg); }
+}
+
+@keyframes circumlocution-infraction-pulse {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.035); }
+}
+
+@keyframes circumlocution-success-pop {
+  0% { opacity: 0; transform: scale(0.7) rotate(-10deg); }
+  70% { transform: scale(1.08) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.circumlocution-word-in {
+  opacity: 0;
+  animation: circumlocution-slide-up-fade 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.circumlocution-drawer-in,
+.circumlocution-result-in {
+  animation: circumlocution-slide-up-fade 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.circumlocution-lamp-wiggle {
+  transform-origin: 50% 80%;
+  animation: circumlocution-wiggle 2.8s ease-in-out infinite;
+}
+
+.circumlocution-infraction {
+  animation: circumlocution-infraction-pulse 420ms ease-in-out;
+}
+
+.circumlocution-success-pop {
+  animation: circumlocution-success-pop 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circumlocution-word-in,
+  .circumlocution-drawer-in,
+  .circumlocution-result-in,
+  .circumlocution-lamp-wiggle,
+  .circumlocution-infraction,
+  .circumlocution-success-pop {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
