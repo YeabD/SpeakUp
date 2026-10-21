@@ -1,7 +1,10 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { VoiceIcon as Mic } from '@/components/icons/studio-icons'
+
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowRight, Check, Headphones, Loader2, Mic, Play, Radio, RotateCcw, VolumeX } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Check, Headphones, Loader2, Play, Radio, RotateCcw, VolumeX } from 'lucide-react'
 
 interface Props {
   sentenceData: { text: string; cefr: string; source: string }
@@ -351,33 +354,33 @@ export default function EchoShadowingStudio({
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {micBlocked && (
-        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-3">
+        <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-3">
           <VolumeX className="w-5 h-5 shrink-0" />
           Microphone access is unavailable. Enable it and retry in a supported browser.
         </div>
       )}
 
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl">
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+      <div className="bg-card/90 border border-border rounded-3xl p-6 sm:p-10 shadow-sm">
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-border">
+          <div role="status" className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
               <Headphones className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-widest block">
+              <span className="text-[11px] font-bold text-primary uppercase tracking-widest block">
                 {levelNumber === 1 ? 'Subtitled Mirror' : levelNumber === 2 ? 'Vanishing Text' : 'Cadence Lock'}
               </span>
-              <span className="text-xs text-slate-400">CEFR {sentenceData.cefr} - Session {sessionNumber} of 15</span>
+              <span className="text-xs text-muted-foreground">CEFR {sentenceData.cefr} - Session {sessionNumber} of 15</span>
             </div>
           </div>
-          <span className="text-xs font-bold text-emerald-400">Pass at 75%</span>
+          <span className="text-xs font-bold text-success">Pass at 75%</span>
         </div>
 
-        <div className="mb-8 p-6 sm:p-8 rounded-2xl bg-slate-950 border border-slate-800 min-h-40 flex items-center justify-center text-center">
+        <div className="mb-8 p-6 sm:p-8 rounded-2xl bg-background border border-border min-h-40 flex items-center justify-center text-center">
           {levelNumber === 1 && (
             <p className="text-xl sm:text-2xl font-medium leading-relaxed">
               {words.map((word, index) => (
-                <span key={index} className={`inline-block mr-2 ${isPlaying && activeWordIndex !== null && index <= activeWordIndex ? 'text-indigo-400 font-bold' : 'text-slate-100'}`}>
+                <span key={index} className={`inline-block mr-2 ${isPlaying && activeWordIndex !== null && index <= activeWordIndex ? 'text-primary font-bold' : 'text-foreground'}`}>
                   {word}
                 </span>
               ))}
@@ -385,118 +388,118 @@ export default function EchoShadowingStudio({
           )}
           {levelNumber === 2 && (!isTextVanished ? (
             <div className="space-y-4">
-              <span className="inline-flex px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-bold">
+              <span className="inline-flex px-3 py-1 rounded-full bg-warning/10 border border-warning/25 text-warning text-xs font-bold">
                 Memorize text: {countdown}s
               </span>
-              <p className="text-xl sm:text-2xl leading-relaxed text-slate-100">{sentenceData.text}</p>
+              <p className="text-xl sm:text-2xl leading-relaxed text-foreground">{sentenceData.text}</p>
             </div>
           ) : (
-            <div className="space-y-3 text-slate-300"><Headphones className="w-8 h-8 mx-auto text-indigo-400" /><p>Audio only: retain and shadow.</p></div>
+            <div className="space-y-3 text-foreground"><Headphones className="w-8 h-8 mx-auto text-primary" /><p>Audio only: retain and shadow.</p></div>
           ))}
           {levelNumber >= 3 && (
-            <div className="space-y-3 text-slate-300"><Radio className="w-9 h-9 mx-auto text-indigo-400 animate-pulse" /><p>Pure auditory shadowing - cadence lock active.</p></div>
+            <div className="space-y-3 text-foreground"><Radio className="w-9 h-9 mx-auto text-primary studio-attention" /><p>Pure auditory shadowing - cadence lock active.</p></div>
           )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <button
+          <Button variant="ghost"
             onClick={handlePlayReference}
             disabled={isPlaying || isRecording || isPreparingRecording}
-            className="flex items-center justify-center gap-3 bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold py-4 px-6 rounded-2xl"
+            className="flex items-center justify-center gap-3 bg-primary disabled:bg-muted disabled:text-muted-foreground text-foreground font-semibold py-4 px-6 rounded-2xl"
           >
             {isPlaying ? <Radio className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
             {isPlaying ? `Playing reference (${Math.round(audioProgress)}%)` : 'Play native prompt'}
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost"
             onClick={isRecording ? handleStopRecording : handleStartRecording}
             disabled={isPlaying || evaluating || isPreparingRecording}
-            className={`flex items-center justify-center gap-3 text-white font-semibold py-4 px-6 rounded-2xl disabled:bg-slate-800 disabled:text-slate-500 ${isRecording ? 'bg-red-600' : 'bg-rose-600'}`}
+            className={`flex items-center justify-center gap-3 text-foreground font-semibold py-4 px-6 rounded-2xl disabled:bg-muted disabled:text-muted-foreground ${isRecording ? 'bg-destructive' : 'bg-destructive'}`}
           >
-            {isPreparingRecording ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+            {isPreparingRecording ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic active={isRecording} className="w-4 h-4" />}
             {isPreparingRecording ? 'Opening microphone...' : isRecording ? `Stop and evaluate (${recordingSeconds}s)` : 'Record and shadow'}
-          </button>
+          </Button>
         </div>
 
-        <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-          <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="p-5 rounded-2xl bg-background border border-border space-y-4">
+          <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             <span>{isRecording ? 'Live speech stream' : 'Transcript'}</span>
             <span>{isRecording ? 'REC - ACTIVE' : 'IDLE'}</span>
           </div>
-          <div className="min-h-11 p-3 rounded-xl bg-slate-900 text-sm text-slate-300 font-mono">
+          <div className="min-h-11 p-3 rounded-xl bg-card text-sm text-foreground font-mono">
             {liveTranscript || (isRecording ? 'Listening for speech...' : 'Your transcript will appear here.')}
           </div>
           <div className="flex items-center gap-1 h-8 overflow-hidden">
             {volumeHeights.map((height, index) => (
-              <div key={index} style={{ height: `${isRecording ? height : 6}px` }} className="w-full rounded-full bg-gradient-to-t from-rose-500 to-indigo-500" />
+              <div key={index} style={{ height: `${isRecording ? height : 6}px` }} className="w-full rounded-full bg-gradient-to-t from-destructive to-primary" />
             ))}
           </div>
         </div>
 
         {evaluating && (
-          <div className="mt-6 p-5 rounded-2xl bg-slate-950 border border-slate-800 text-center text-sm text-slate-300">
-            <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto mb-2" />
+          <div className="mt-6 p-5 rounded-2xl bg-background border border-border text-center text-sm text-foreground">
+            <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
             Transcribing and evaluating coverage and pronunciation...
           </div>
         )}
 
         {verdict && score !== null && !evaluating && (
-          <div className="mt-6 p-6 rounded-3xl bg-slate-950 border border-slate-800 space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between gap-5 pb-5 border-b border-slate-800">
+          <div className="mt-6 p-6 rounded-3xl bg-background border border-border space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between gap-5 pb-5 border-b border-border">
               <div className="flex items-center gap-4">
-                <div className={`h-16 w-16 rounded-full border-4 flex items-center justify-center text-lg font-black ${verdict === 'passed' ? 'border-emerald-500 text-emerald-400' : 'border-amber-500 text-amber-400'}`}>
+                <div className={`h-16 w-16 rounded-full border-4 flex items-center justify-center text-lg font-black ${verdict === 'passed' ? 'border-success text-success' : 'border-warning text-warning'}`}>
                   {score}%
                 </div>
                 <div>
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${verdict === 'passed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${verdict === 'passed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
                     {verdict === 'passed' ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
                     {verdict === 'passed' ? 'Passed' : 'Needs retry'}
                   </span>
-                  <p className="mt-2 text-sm text-slate-300">
+                  <p className="mt-2 text-sm text-foreground">
                     {verdict === 'passed' ? 'Coverage and pronunciation meet the 75% gate.' : failureReason}
                   </p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={resetAttempt} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-3 rounded-xl text-xs font-semibold">
+                <Button variant="ghost" onClick={resetAttempt} className="flex items-center gap-2 bg-muted hover:bg-muted px-4 py-3 rounded-xl text-xs font-semibold">
                   <RotateCcw className="w-4 h-4" /> Retry
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost"
                   onClick={handleNext}
                   disabled={verdict !== 'passed' || score < 75}
-                  className="flex items-center gap-2 bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-3 rounded-xl text-xs font-semibold"
+                  className="flex items-center gap-2 bg-success disabled:bg-muted disabled:text-muted-foreground px-4 py-3 rounded-xl text-xs font-semibold"
                 >
                   Next session <ArrowRight className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400 mb-2">Missed / omitted words</h4>
-                <p className="text-sm text-slate-300">{missedWords.length ? missedWords.join(', ') : 'None'}</p>
+              <div className="p-4 rounded-2xl bg-destructive/5 border border-destructive/20">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-destructive mb-2">Missed / omitted words</h4>
+                <p className="text-sm text-foreground">{missedWords.length ? missedWords.join(', ') : 'None'}</p>
               </div>
-              <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">Mispronounced / slurred words</h4>
+              <div className="p-4 rounded-2xl bg-warning/5 border border-warning/20">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-warning mb-2">Mispronounced / slurred words</h4>
                 {mispronouncedWords.length ? mispronouncedWords.map((item, index) => (
-                  <p key={index} className="text-sm text-slate-300">
+                  <p key={index} className="text-sm text-foreground">
                     Target: <strong>{item.target}</strong> - Heard: <strong>{item.heard}</strong>
                   </p>
-                )) : <p className="text-sm text-slate-300">None</p>}
+                )) : <p className="text-sm text-foreground">None</p>}
               </div>
             </div>
 
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Interactive word diff</h4>
-              <div className="flex flex-wrap gap-2 p-4 bg-slate-900 rounded-2xl border border-slate-800">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Interactive word diff</h4>
+              <div className="flex flex-wrap gap-2 p-4 bg-card rounded-2xl border border-border">
                 {wordDiff.map((item, index) => (
                   <span
                     key={index}
                     title={item.heard ? `Heard: ${item.heard} - ${Math.round(item.similarity * 100)}% match` : 'Not detected'}
                     className={`px-2 py-1 rounded text-sm ${item.status === 'correct'
-                      ? 'text-emerald-300 bg-emerald-500/10'
+                      ? 'text-success bg-success/10'
                       : item.status === 'mispronounced'
-                      ? 'text-amber-300 bg-amber-500/10 underline decoration-amber-400 decoration-2 underline-offset-4'
-                      : 'text-rose-400 bg-rose-500/10 line-through'}`}
+                      ? 'text-warning bg-warning/10 underline decoration-warning decoration-2 underline-offset-4'
+                      : 'text-destructive bg-destructive/10 line-through'}`}
                   >
                     {item.word}
                   </span>

@@ -1,29 +1,13 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { VoiceIcon as Mic, AchievementIcon as Award } from '@/components/icons/studio-icons'
+import { StudioBanner } from '@/components/shared/studio-banner'
+
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/client'
-import {
-  Mic,
-  ArrowLeft,
-  Loader2,
-  Award,
-  Zap,
-  ShieldCheck,
-  RotateCcw,
-  ArrowRight,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Sparkles,
-  Activity,
-  Timer,
-  Volume2,
-  StopCircle,
-  Play,
-  Check,
-  AlertTriangle
-} from 'lucide-react'
+import { ArrowLeft, Loader2, Zap, ShieldCheck, RotateCcw, ArrowRight, CheckCircle2, XCircle, Clock, Sparkles, Activity, Timer, Volume2, StopCircle, Play, Check, AlertTriangle } from 'lucide-react'
 
 type CompressorState =
   | 'ROUND_1_IDLE'
@@ -320,9 +304,9 @@ export default function CompressorPracticePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-slate-950 items-center justify-center text-slate-400 font-sans">
-        <div className="flex items-center gap-3">
-          <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+      <div className="flex studio-page studio-compressor min-h-screen bg-background items-center justify-center text-muted-foreground font-sans">
+        <div role="status" className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
           <span className="text-sm font-semibold">Initializing 4/3/2 Compressor Engine...</span>
         </div>
       </div>
@@ -336,11 +320,11 @@ export default function CompressorPracticePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-50 font-sans">
+    <div className="flex flex-col studio-page studio-compressor min-h-screen bg-background text-foreground font-sans">
       {/* Top Header & HUD */}
-      <header className="flex flex-col md:flex-row items-center justify-between px-6 lg:px-16 py-4 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md sticky top-0 z-50 gap-4">
+      <header className="flex flex-col md:flex-row items-center justify-between px-6 lg:px-16 py-4 border-b border-border/80 bg-background/90 backdrop-blur-md sticky top-0 z-50 gap-4">
         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-          <button
+          <Button variant="ghost"
             onClick={() => {
               if (compressorState !== 'ROUND_1_IDLE' && compressorState !== 'VERDICT_REPORT') {
                 if (confirm('Are you sure you want to exit? Your current compressor set will be reset.')) {
@@ -350,13 +334,13 @@ export default function CompressorPracticePage() {
                 router.push('/dashboard')
               }
             }}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl cursor-pointer"
+            className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors bg-card border border-border px-3.5 py-2 rounded-xl cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" /> Dashboard
-          </button>
+          </Button>
 
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-            <Timer className="w-4 h-4 text-amber-400" />
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-warning/10 border border-warning/30 text-warning text-xs font-semibold">
+            <Timer className="w-4 h-4 text-warning" />
             <span>4/3/2 Compressor • Level {currentLevel}</span>
           </div>
         </div>
@@ -372,35 +356,36 @@ export default function CompressorPracticePage() {
                 key={num}
                 title={`Session ${num}`}
                 className={`w-6 h-2 rounded-full transition-all ${
-                  isCompleted ? 'bg-emerald-500' : isCurrent ? 'bg-amber-500 ring-2 ring-amber-500/30 animate-pulse' : 'bg-slate-800'
+                  isCompleted ? 'bg-success' : isCurrent ? 'bg-warning ring-2 ring-warning/30 studio-attention' : 'bg-muted'
                 }`}
               />
             )
           })}
-          <span className="text-xs font-medium text-slate-400 ml-2">Session {sessionNumber}/15</span>
+          <span className="text-xs font-medium text-muted-foreground ml-2">Session {sessionNumber}/15</span>
         </div>
 
         {/* Debug Mode Toggle for Testing */}
         <div className="flex items-center gap-3">
-          <button
+          <Button variant="ghost"
             onClick={() => setDebugMode(!debugMode)}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-              debugMode ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              debugMode ? 'bg-destructive/20 border-destructive/40 text-destructive' : 'bg-card border-border text-muted-foreground hover:text-foreground'
             }`}
           >
             🐛 Debug Timers: {debugMode ? 'ON (40s/30s/20s)' : 'OFF (4m/3m/2m)'}
-          </button>
+          </Button>
         </div>
       </header>
 
       {/* Main Arena */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-8 max-w-5xl mx-auto w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-8 max-w-5xl mx-auto w-full">
+        <StudioBanner module="compressor" />
         {/* 3-Phase Compression Stepper Hero */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
-            compressorState === 'ROUND_1_RECORDING' ? 'bg-indigo-600/20 border-indigo-500/50 text-white' : compressorState === 'INTERMISSION_1' || compressorState === 'ROUND_2_RECORDING' || compressorState === 'ROUND_3_RECORDING' || compressorState === 'ANALYZING' || compressorState === 'VERDICT_REPORT' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-900 border-slate-800 text-slate-400'
+            compressorState === 'ROUND_1_RECORDING' ? 'bg-primary/20 border-primary/50 text-foreground' : compressorState === 'INTERMISSION_1' || compressorState === 'ROUND_2_RECORDING' || compressorState === 'ROUND_3_RECORDING' || compressorState === 'ANALYZING' || compressorState === 'VERDICT_REPORT' ? 'bg-success/10 border-success/30 text-success' : 'bg-card border-border text-muted-foreground'
           }`}>
-            <div className="w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center font-bold text-xs">1</div>
+            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center font-bold text-xs">1</div>
             <div>
               <span className="text-xs font-medium block opacity-75">Pass 1: Base Round</span>
               <span className="text-sm font-bold">{debugMode ? '40s' : '4:00 Minutes'}</span>
@@ -408,9 +393,9 @@ export default function CompressorPracticePage() {
           </div>
 
           <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
-            compressorState === 'ROUND_2_RECORDING' ? 'bg-amber-600/20 border-amber-500/50 text-white' : compressorState === 'INTERMISSION_2' || compressorState === 'ROUND_3_RECORDING' || compressorState === 'ANALYZING' || compressorState === 'VERDICT_REPORT' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-900 border-slate-800 text-slate-400'
+            compressorState === 'ROUND_2_RECORDING' ? 'bg-warning/20 border-warning/50 text-foreground' : compressorState === 'INTERMISSION_2' || compressorState === 'ROUND_3_RECORDING' || compressorState === 'ANALYZING' || compressorState === 'VERDICT_REPORT' ? 'bg-success/10 border-success/30 text-success' : 'bg-card border-border text-muted-foreground'
           }`}>
-            <div className="w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center font-bold text-xs">2</div>
+            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center font-bold text-xs">2</div>
             <div>
               <span className="text-xs font-medium block opacity-75">Pass 2: Compression</span>
               <span className="text-sm font-bold">{debugMode ? '30s' : '3:00 Minutes'}</span>
@@ -418,9 +403,9 @@ export default function CompressorPracticePage() {
           </div>
 
           <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
-            compressorState === 'ROUND_3_RECORDING' ? 'bg-emerald-600/20 border-emerald-500/50 text-white' : compressorState === 'VERDICT_REPORT' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-900 border-slate-800 text-slate-400'
+            compressorState === 'ROUND_3_RECORDING' ? 'bg-success/20 border-success/50 text-foreground' : compressorState === 'VERDICT_REPORT' ? 'bg-success/10 border-success/30 text-success' : 'bg-card border-border text-muted-foreground'
           }`}>
-            <div className="w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center font-bold text-xs">3</div>
+            <div className="w-8 h-8 rounded-xl bg-background flex items-center justify-center font-bold text-xs">3</div>
             <div>
               <span className="text-xs font-medium block opacity-75">Pass 3: Velocity Master</span>
               <span className="text-sm font-bold">{debugMode ? '20s' : '2:00 Minutes'}</span>
@@ -431,27 +416,27 @@ export default function CompressorPracticePage() {
         {/* State Conditional Views */}
         {compressorState === 'ROUND_1_IDLE' ? (
           /* Initial Round 1 Briefing Card */
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full blur-3xl pointer-events-none bg-amber-500/10" />
+          <div className="w-full bg-card/90 border border-border rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full blur-3xl pointer-events-none bg-warning/10" />
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <div role="status" className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-2xl bg-warning/10 border border-warning/30 text-warning">
                 <Timer className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">4/3/2 Fluency Compressor Set</h2>
-                <p className="text-sm text-slate-400">Category: {currentTopic.category}</p>
+                <h2 className="text-2xl font-bold text-foreground">4/3/2 Fluency Compressor Set</h2>
+                <p className="text-sm text-muted-foreground">Category: {currentTopic.category}</p>
               </div>
             </div>
 
-            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-6 mb-8">
-              <span className="text-xs font-semibold uppercase tracking-wider text-amber-400 block mb-2">Topic Prompt:</span>
-              <h3 className="text-xl font-medium text-white leading-relaxed mb-6">"{currentTopic.title}"</h3>
+            <div className="bg-background/70 border border-border/80 rounded-2xl p-6 mb-8">
+              <span className="text-xs font-semibold uppercase tracking-wider text-warning block mb-2">Topic Prompt:</span>
+              <h3 className="text-xl font-medium text-foreground leading-relaxed mb-6">"{currentTopic.title}"</h3>
 
-              <span className="text-xs font-semibold text-slate-400 block mb-2">Guiding Outline Tags:</span>
+              <span className="text-xs font-semibold text-muted-foreground block mb-2">Guiding Outline Tags:</span>
               <div className="flex flex-wrap gap-2">
                 {currentTopic.tags.map((tag, idx) => (
-                  <span key={idx} className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-300">
+                  <span key={idx} className="px-3 py-1.5 rounded-xl bg-card border border-border text-xs font-medium text-foreground">
                     {idx + 1}. {tag}
                   </span>
                 ))}
@@ -459,122 +444,122 @@ export default function CompressorPracticePage() {
             </div>
 
             <div className="flex justify-end">
-              <button
+              <Button variant="ghost"
                 onClick={() => startRound(1)}
-                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-xl shadow-indigo-600/25 cursor-pointer"
+                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-primary hover:bg-primary text-foreground font-semibold text-sm transition-all shadow-xl shadow-primary/25 cursor-pointer"
               >
                 <span>Start Round 1 ({debugMode ? '40s' : '4 Minutes'})</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           </div>
         ) : compressorState === 'INTERMISSION_1' ? (
           /* Transition Intermission 1 -> 2 */
-          <div className="w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl text-center">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-6">
+          <div className="w-full bg-card/95 border border-border rounded-3xl p-8 sm:p-12 shadow-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-success/10 border border-success/30 text-success flex items-center justify-center mx-auto mb-6">
               <Check className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Round 1 Completed Successfully!</h2>
-            <p className="text-slate-400 text-sm mb-6">Time spent: {durationP1}s • Words captured: {transcriptP1.split(' ').length} words</p>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Round 1 Completed Successfully!</h2>
+            <p className="text-muted-foreground text-sm mb-6">Time spent: {durationP1}s • Words captured: {transcriptP1.split(' ').length} words</p>
 
-            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-5 max-w-xl mx-auto mb-8 text-left flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+            <div className="bg-primary/10 border border-primary/25 rounded-2xl p-5 max-w-xl mx-auto mb-8 text-left flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-sm font-semibold text-indigo-300 mb-1">Strategic Compression Tip for Round 2</h4>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <h4 className="text-sm font-semibold text-primary mb-1">Strategic Compression Tip for Round 2</h4>
+                <p className="text-xs text-foreground leading-relaxed">
                   In Round 2, you have only {debugMode ? '30s' : '3 minutes'}. Keep the exact same key facts and narrative arc, but actively prune hesitation pauses, filler phrases, and long introductions!
                 </p>
               </div>
             </div>
 
-            <button
+            <Button variant="ghost"
               onClick={() => startRound(2)}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-xl shadow-indigo-600/25 cursor-pointer"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-primary hover:bg-primary text-foreground font-semibold text-sm transition-all shadow-xl shadow-primary/25 cursor-pointer"
             >
               <span>Start Round 2 ({debugMode ? '30s' : '3 Minutes'})</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         ) : compressorState === 'INTERMISSION_2' ? (
           /* Transition Intermission 2 -> 3 */
-          <div className="w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl text-center">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto mb-6">
+          <div className="w-full bg-card/95 border border-border rounded-3xl p-8 sm:p-12 shadow-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-success/10 border border-success/30 text-success flex items-center justify-center mx-auto mb-6">
               <Check className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Round 2 Completed Successfully!</h2>
-            <p className="text-slate-400 text-sm mb-6">Time spent: {durationP2}s • Higher lexical density achieved.</p>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Round 2 Completed Successfully!</h2>
+            <p className="text-muted-foreground text-sm mb-6">Time spent: {durationP2}s • Higher lexical density achieved.</p>
 
-            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-5 max-w-xl mx-auto mb-8 text-left flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+            <div className="bg-primary/10 border border-primary/25 rounded-2xl p-5 max-w-xl mx-auto mb-8 text-left flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-sm font-semibold text-indigo-300 mb-1">Final Velocity Pass (Round 3)</h4>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <h4 className="text-sm font-semibold text-primary mb-1">Final Velocity Pass (Round 3)</h4>
+                <p className="text-xs text-foreground leading-relaxed">
                   Now deliver your high-density master pass in {debugMode ? '20s' : '2 minutes'}. Deliver only the core punches and conclusions with zero hesitation!
                 </p>
               </div>
             </div>
 
-            <button
+            <Button variant="ghost"
               onClick={() => startRound(3)}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-xl shadow-indigo-600/25 cursor-pointer"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-primary hover:bg-primary text-foreground font-semibold text-sm transition-all shadow-xl shadow-primary/25 cursor-pointer"
             >
               <span>Start Round 3 ({debugMode ? '20s' : '2 Minutes'})</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         ) : compressorState === 'ANALYZING' ? (
           /* Analyzing State */
-          <div className="w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-16 shadow-2xl text-center">
-            <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Analyzing Compression Efficiency & Information Retention...</h2>
-            <p className="text-slate-400 text-sm">Gemini Flash is auditing your 3 consecutive speech passes for factual retention and filler pruning.</p>
+          <div className="w-full bg-card/95 border border-border rounded-3xl p-16 shadow-sm text-center">
+            <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-foreground mb-2">Analyzing Compression Efficiency & Information Retention...</h2>
+            <p className="text-muted-foreground text-sm">Gemini Flash is auditing your 3 consecutive speech passes for factual retention and filler pruning.</p>
           </div>
         ) : compressorState === 'VERDICT_REPORT' ? (
           /* Post-Session Performance & Compression Analysis Card */
-          <div className="w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
-            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full blur-3xl pointer-events-none bg-emerald-500/10" />
+          <div className="w-full bg-card/95 border border-border rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden animate-in fade-in duration-300">
+            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full blur-3xl pointer-events-none bg-success/10" />
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+            <div role="status" className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-2xl bg-success/10 border border-success/30 text-success">
                 <Award className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">Compressor Set Completed!</h2>
-                <p className="text-sm text-slate-400">All 3 velocity passes successfully audited.</p>
+                <h2 className="text-2xl font-bold text-foreground">Compressor Set Completed!</h2>
+                <p className="text-sm text-muted-foreground">All 3 velocity passes successfully audited.</p>
               </div>
             </div>
 
             {/* Information Retention Ratio (IRR) Hero Metric */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Information Retention (IRR)</span>
-                <span className={`text-3xl font-bold ${(verdictData?.irr_score || 0) >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <div className="bg-background/60 border border-border/80 rounded-2xl p-4 text-center">
+                <span className="text-xs font-medium text-muted-foreground block mb-1">Information Retention (IRR)</span>
+                <span className={`text-3xl font-bold ${(verdictData?.irr_score || 0) >= 80 ? 'text-success' : 'text-warning'}`}>
                   {verdictData?.irr_score}%
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Target $\ge 80\%$ Certified</span>
+                <span className="text-[10px] text-muted-foreground block mt-0.5">Target $\ge 80\%$ Certified</span>
               </div>
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Certification Status</span>
-                <span className="text-lg font-bold text-emerald-400 mt-1 inline-flex items-center gap-1">
+              <div className="bg-background/60 border border-border/80 rounded-2xl p-4 text-center">
+                <span className="text-xs font-medium text-muted-foreground block mb-1">Certification Status</span>
+                <span className="text-lg font-bold text-success mt-1 inline-flex items-center gap-1">
                   <ShieldCheck className="w-5 h-5" /> Certified Pass
                 </span>
               </div>
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 text-center">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Lexical Density Gain</span>
-                <span className="text-sm font-bold text-indigo-400 mt-1 block">
+              <div className="bg-background/60 border border-border/80 rounded-2xl p-4 text-center">
+                <span className="text-xs font-medium text-muted-foreground block mb-1">Lexical Density Gain</span>
+                <span className="text-sm font-bold text-primary mt-1 block">
                   {verdictData?.lexical_density_gain || '+35% Efficiency'}
                 </span>
               </div>
             </div>
 
             {/* 3-Round Side-by-Side Telemetry Table */}
-            <div className="mb-8 bg-slate-950/80 border border-slate-800/80 rounded-2xl p-5 overflow-x-auto">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-400" /> 3-Round Compression Telemetry
+            <div className="mb-8 bg-background/80 border border-border/80 rounded-2xl p-5 overflow-x-auto">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" /> 3-Round Compression Telemetry
               </h3>
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full text-left text-xs text-foreground">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400">
+                  <tr className="border-b border-border text-muted-foreground">
                     <th className="pb-3 font-semibold">Metric</th>
                     <th className="pb-3 font-semibold">Pass 1 (Base)</th>
                     <th className="pb-3 font-semibold">Pass 2 (Compressed)</th>
@@ -583,13 +568,13 @@ export default function CompressorPracticePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
                   <tr>
-                    <td className="py-3 font-medium text-white">Elapsed Duration</td>
+                    <td className="py-3 font-medium text-foreground">Elapsed Duration</td>
                     <td className="py-3 font-mono">{durationP1}s</td>
                     <td className="py-3 font-mono">{durationP2}s</td>
-                    <td className="py-3 font-mono text-emerald-400 font-bold">{durationP3}s</td>
+                    <td className="py-3 font-mono text-success font-bold">{durationP3}s</td>
                   </tr>
                   <tr>
-                    <td className="py-3 font-medium text-white">Word Count</td>
+                    <td className="py-3 font-medium text-foreground">Word Count</td>
                     <td className="py-3 font-mono">{transcriptP1.split(' ').length} words</td>
                     <td className="py-3 font-mono">{transcriptP2.split(' ').length} words</td>
                     <td className="py-3 font-mono">{transcriptP3.split(' ').length} words</td>
@@ -600,26 +585,26 @@ export default function CompressorPracticePage() {
 
             {/* Fact Preservation & Pruning Breakdown */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-5">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-3 flex items-center gap-2">
+              <div className="bg-background/70 border border-border/80 rounded-2xl p-5">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-success mb-3 flex items-center gap-2">
                   <Check className="w-4 h-4" /> Retained Core Ideas (Pass 3)
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {verdictData?.preserved_facts?.map((fact, idx) => (
-                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300">
+                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-success/10 border border-success/25 text-xs text-success">
                       ✓ {fact}
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-5">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3 flex items-center gap-2">
+              <div className="bg-background/70 border border-border/80 rounded-2xl p-5">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-warning mb-3 flex items-center gap-2">
                   <Sparkles className="w-4 h-4" /> Successfully Pruned Fluff
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {verdictData?.pruned_fluff?.map((fluff, idx) => (
-                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400 line-through">
+                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-card border border-border text-xs text-muted-foreground line-through">
                       {fluff}
                     </span>
                   ))}
@@ -629,66 +614,66 @@ export default function CompressorPracticePage() {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-              <button
+              <Button variant="ghost"
                 onClick={() => resetSession()}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition-all cursor-pointer border border-slate-700"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-muted hover:bg-muted text-foreground font-semibold text-sm transition-all cursor-pointer border border-border"
               >
                 <RotateCcw className="w-4 h-4" /> Retry Topic
-              </button>
-              <button
+              </Button>
+              <Button variant="ghost"
                 onClick={() => {
                   if (sessionNumber < 15) {
                     setSessionNumber(prev => prev + 1)
                   }
                   loadTopic(currentLevel, sessionNumber >= 15 ? 15 : sessionNumber + 1)
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary text-foreground font-semibold text-sm transition-all shadow-lg shadow-primary/25 cursor-pointer"
               >
                 <span>Next Session ({sessionNumber >= 15 ? 15 : sessionNumber + 1}/15)</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
           /* Active Recording Round (1, 2, or 3) */
-          <div className="w-full bg-slate-900/90 border border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden text-center">
-            <div className="absolute top-0 right-0 -mt-16 -mr-16 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-indigo-500/10" />
+          <div className="w-full bg-card/90 border border-border/90 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden text-center">
+            <div className="absolute top-0 right-0 -mt-16 -mr-16 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-primary/10" />
 
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold mb-6">
-              <Mic className="w-4 h-4 animate-pulse text-rose-500" />
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold mb-6">
+              <Mic className="w-4 h-4 studio-attention text-destructive" />
               <span>
                 {compressorState === 'ROUND_1_RECORDING' ? 'ROUND 1 OF 3 (Base 4m)' : compressorState === 'ROUND_2_RECORDING' ? 'ROUND 2 OF 3 (Compression 3m)' : 'ROUND 3 OF 3 (Velocity 2m)'}
               </span>
             </div>
 
             {/* Circular Timer / Countdown Display */}
-            <div className="relative w-40 h-40 mx-auto mb-8 flex items-center justify-center bg-slate-950 border-4 border-slate-800 rounded-full shadow-inner">
+            <div className="relative w-40 h-40 mx-auto mb-8 flex items-center justify-center bg-background border-4 border-border rounded-full shadow-inner">
               <div className="flex flex-col items-center">
-                <span className="text-3xl font-bold font-mono text-white">{formatTime(timeLeft)}</span>
-                <span className="text-xs text-slate-400 mt-1">Remaining</span>
+                <span className="text-3xl font-bold font-mono text-foreground">{formatTime(timeLeft)}</span>
+                <span className="text-xs text-muted-foreground mt-1">Remaining</span>
               </div>
             </div>
 
-            <h3 className="text-lg font-medium text-white mb-6 max-w-2xl mx-auto">
+            <h3 className="text-lg font-medium text-foreground mb-6 max-w-2xl mx-auto">
               "{currentTopic.title}"
             </h3>
 
             {/* Live Transcript Ticker */}
-            <div className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-5 mb-8 text-left min-h-[100px] max-h-48 overflow-y-auto">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Live Transcript Ticker:</span>
-              <p className="text-sm font-medium text-slate-200 leading-relaxed">
+            <div className="w-full bg-background border border-border rounded-2xl p-5 mb-8 text-left min-h-[100px] max-h-48 overflow-y-auto">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Live Transcript Ticker:</span>
+              <p className="text-sm font-medium text-foreground leading-relaxed">
                 {liveTranscript || 'Listening to your speech... Start speaking clearly.'}
               </p>
             </div>
 
             <div className="flex items-center justify-center gap-4">
-              <button
+              <Button variant="ghost"
                 onClick={handleFinishRound}
-                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm transition-all shadow-xl shadow-rose-600/25 cursor-pointer"
+                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-destructive hover:bg-destructive text-foreground font-semibold text-sm transition-all shadow-xl shadow-destructive/25 cursor-pointer"
               >
                 <StopCircle className="w-5 h-5" />
                 <span>Finish Round Early & Continue</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}

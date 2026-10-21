@@ -1,155 +1,70 @@
 import Link from 'next/link'
-import { Sparkles, Zap, Mic, ShieldCheck, ArrowRight, BarChart3, Award } from 'lucide-react'
+import { ArrowDown, ArrowRight, Check, Sparkles } from 'lucide-react'
+import { Brand } from '@/components/shared/brand'
+import { StudioIcon, type StudioIconName } from '@/components/icons/studio-icons'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+
+const modules: { name: StudioIconName; title: string; description: string; label: string; theme: string }[] = [
+  { name: 'echo', title: 'Find your rhythm', description: 'Listen, echo, and make natural cadence your own.', label: 'Echo-Shadowing', theme: 'studio-shadowing' },
+  { name: 'idea', title: 'Think around the word', description: 'Find creative ways to express exactly what you mean.', label: 'Circumlocution', theme: 'studio-circumlocution' },
+  { name: 'volley', title: 'Keep it flowing', description: 'Build confidence one spontaneous response at a time.', label: 'Conversational Ping-Pong', theme: 'studio-ping-pong' },
+  { name: 'compress', title: 'Make every word count', description: 'Keep the meaning. Shape a clearer, sharper story.', label: '4/3/2 Compressor', theme: 'studio-compressor' },
+]
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Navigation Header */}
-      <header className="flex items-center justify-between px-6 lg:px-16 py-6 border-b border-zinc-800/60 backdrop-blur-md sticky top-0 z-50 bg-zinc-950/80">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Mic className="w-5 h-5 text-white" />
+    <div className="studio-page min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-xl">
+        <nav aria-label="Main navigation" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Brand />
+          <div className="flex items-center gap-2 sm:gap-5">
+            <a href="#practice" className="hidden rounded-lg text-sm font-medium text-muted-foreground hover:text-primary md:block">Explore the studio</a>
+            <Button variant="ghost" asChild className="hidden sm:inline-flex"><Link href="/login">Sign in</Link></Button>
+            <Button asChild><Link href="/signup">Start learning <ArrowRight className="size-4" /></Link></Button>
           </div>
-          <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-            SpeakUp
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/signup"
-            className="text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02]"
-          >
-            Start Learning
-          </Link>
-        </div>
+        </nav>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden px-6 lg:px-16 pt-24 pb-20 max-w-7xl mx-auto w-full text-center lg:text-left flex flex-col lg:flex-row items-center gap-12">
-        <div className="flex-1 flex flex-col items-center lg:items-start">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs font-semibold mb-6 tracking-wide uppercase">
-            <Sparkles className="w-3.5 h-3.5" /> Next-Gen Speech Mastery
-          </div>
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.1] mb-6">
-            Command Any Room with <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Cognitive Precision</span>
-          </h1>
-          <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mb-10 leading-relaxed font-normal">
-            Move beyond superficial tips. SpeakUp trains your brain for high-pressure delivery through cognitive load drills, real-time latency window scoring, and advanced AI evaluation.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-            <Link
-              href="/signup"
-              className="w-full sm:w-auto flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-2xl shadow-xl shadow-indigo-600/25 transition-all hover:scale-[1.02] text-base group"
-            >
-              Start Learning
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Hero Visual Preview: Fluency Belts & Heatmap Preview */}
-        <div className="flex-1 w-full max-w-xl">
-          <div className="relative rounded-3xl p-6 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800 shadow-2xl overflow-hidden group">
-            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-            
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xs font-semibold text-zinc-400 tracking-wider uppercase">Live Telemetry Preview</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Active Session
-              </span>
+      <main id="main-content" tabIndex={-1}>
+        <section className="relative mx-auto grid max-w-7xl items-center gap-12 overflow-hidden px-5 pb-16 pt-14 sm:px-8 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pb-24">
+          <div className="relative z-10">
+            <Badge className="mb-7 gap-2 py-2"><Sparkles className="size-3.5" /> YOUR VOICE HAS POSSIBILITIES</Badge>
+            <h1 className="max-w-2xl font-heading text-[clamp(2.8rem,5.3vw,4.9rem)] font-semibold leading-[1.06] tracking-[-.045em]">Big ideas.<br />Brave conversations.<br /><span className="hero-gradient">A voice that’s you.</span></h1>
+            <p className="mt-7 max-w-lg text-base leading-8 text-muted-foreground sm:text-lg">A little practice can change how you show up. Find your flow with creative speaking exercises and thoughtful AI feedback.</p>
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <Button size="lg" asChild className="group"><Link href="/signup">Step into your studio <ArrowRight className="transition-transform group-hover:translate-x-1" /></Link></Button>
+              <Button variant="ghost" size="lg" asChild><a href="#practice">Find your practice <ArrowDown className="size-4" /></a></Button>
             </div>
-
-            {/* Fluency Belts Preview */}
-            <div className="mb-6 p-4 rounded-2xl bg-zinc-950/80 border border-zinc-800/80">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-amber-400" /> Fluency Belt Progression
-                </span>
-                <span className="text-xs text-indigo-400 font-semibold">Black Belt Level</span>
-              </div>
-              <div className="grid grid-cols-5 gap-2">
-                <div className="h-3 rounded-full bg-zinc-700" title="White Belt" />
-                <div className="h-3 rounded-full bg-yellow-600" title="Yellow Belt" />
-                <div className="h-3 rounded-full bg-emerald-600" title="Green Belt" />
-                <div className="h-3 rounded-full bg-indigo-600 ring-2 ring-indigo-400" title="Blue Belt (Current)" />
-                <div className="h-3 rounded-full bg-zinc-800" title="Black Belt" />
-              </div>
-            </div>
-
-            {/* Pause Duration Heatmap Preview */}
-            <div className="p-4 rounded-2xl bg-zinc-950/80 border border-zinc-800/80">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-indigo-400" /> Pause Duration Heatmap
-                </span>
-                <span className="text-xs text-zinc-400">Optimal Pace</span>
-              </div>
-              <div className="flex items-center gap-1.5 h-10 px-2 bg-zinc-900 rounded-xl">
-                <div className="flex-1 h-5 bg-emerald-500/80 rounded" title="Flow (0.2s)" />
-                <div className="flex-1 h-3 bg-emerald-500/80 rounded" title="Flow (0.4s)" />
-                <div className="flex-1 h-8 bg-amber-500/80 rounded" title="Noticeable Pause (1.2s)" />
-                <div className="flex-1 h-4 bg-emerald-500/80 rounded" title="Flow (0.3s)" />
-                <div className="flex-1 h-10 bg-rose-500/80 rounded" title="Excessive Hesitation (2.5s)" />
-                <div className="flex-1 h-3 bg-emerald-500/80 rounded" title="Flow (0.2s)" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Differentiators Section */}
-      <section className="px-6 lg:px-16 py-24 bg-zinc-900/40 border-t border-zinc-800/60">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
-              Engineered for Elite Communication
-            </h2>
-            <p className="text-zinc-400 text-lg">
-              Our methodology combines cognitive psychology with real-time speech analytics to build unshakable verbal composure.
-            </p>
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-muted-foreground"><span className="flex items-center gap-1.5"><Check className="size-4 text-success" /> Guided practice</span><span className="flex items-center gap-1.5"><Check className="size-4 text-success" /> Personalized feedback</span><span className="flex items-center gap-1.5"><Check className="size-4 text-success" /> At your own pace</span></div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Card 1 */}
-            <div className="p-8 rounded-3xl bg-zinc-900 border border-zinc-800/80 hover:border-indigo-500/50 transition-all group">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
-                <Zap className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Cognitive Load Training</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed">
-                Simulate complex audience questions, unexpected interruptions, and high-pressure topic switches while maintaining vocal control and structured thinking.
-              </p>
-            </div>
-
-            {/* Card 2 */}
-            <div className="p-8 rounded-3xl bg-zinc-900 border border-zinc-800/80 hover:border-indigo-500/50 transition-all group">
-              <div className="h-12 w-12 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Latency-Window Scoring</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed">
-                Measure response latency and hesitation windows down to the millisecond. Eliminate verbal fillers and awkward silences before they disrupt your flow.
-              </p>
-            </div>
-
-            {/* Card 3 */}
-            <div className="p-8 rounded-3xl bg-zinc-900 border border-zinc-800/80 hover:border-indigo-500/50 transition-all group">
-              <div className="h-12 w-12 rounded-2xl bg-pink-500/10 border border-pink-500/25 flex items-center justify-center text-pink-400 mb-6 group-hover:scale-110 transition-transform">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-3">Unlocked 8-Minute Open Mic</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed">
-                Progress through milestone levels to unlock extended unscripted speaking rooms. Receive deep AI evaluations on pacing, persuasiveness, and cadence.
-              </p>
-            </div>
+          <div className="voice-canvas relative mx-auto flex min-h-[420px] w-full max-w-xl items-center justify-center rounded-[2.5rem] border border-primary/15 px-7 py-16 sm:min-h-[490px]" aria-label="Explore four ways to strengthen your voice">
+            <div className="voice-orbit absolute size-64 rounded-full border border-primary/15 sm:size-80" aria-hidden="true" />
+            <div className="voice-orbit absolute size-44 rounded-full border border-primary/20 sm:size-56" aria-hidden="true" />
+            <div className="group relative z-10 flex size-32 items-center justify-center rounded-[2.4rem] border border-primary/20 bg-primary text-primary-foreground shadow-2xl shadow-primary/20 sm:size-40"><StudioIcon name="voice" className="size-24 sm:size-28" /></div>
+            <div className="voice-sticker absolute left-4 top-7 -rotate-6 bg-card text-info sm:left-7"><StudioIcon name="echo" className="size-12" /><div><span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Find your rhythm</span><span className="font-heading text-lg font-semibold">Listen. Echo. Grow.</span></div></div>
+            <div className="voice-sticker absolute bottom-8 right-3 rotate-3 bg-card text-success sm:right-5"><StudioIcon name="volley" className="size-12" /><div><span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Build connection</span><span className="font-heading text-lg font-semibold">Let’s talk possibility.</span></div></div>
+            <div className="group absolute right-6 top-28 rounded-2xl border border-ai/20 bg-card p-3 text-ai sm:right-9"><StudioIcon name="idea" className="size-12" /></div>
+            <div className="group absolute bottom-28 left-7 rounded-2xl border border-coral/20 bg-card p-3 text-coral sm:left-12"><StudioIcon name="compress" className="size-12" /></div>
+            <span className="absolute bottom-4 left-6 text-[10px] font-semibold uppercase tracking-[.22em] text-muted-foreground">The SpeakUp voice studio</span>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer className="mt-auto px-6 lg:px-16 py-8 border-t border-zinc-800/60 text-center text-sm text-zinc-500">
-        <p>&copy; 2026 SpeakUp AI. All rights reserved.</p>
-      </footer>
+        <section id="practice" className="scroll-mt-24 border-y border-border bg-card/50 px-5 py-16 sm:px-8 sm:py-20">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-primary">FOUR WAYS TO FIND YOUR FLOW</p><h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">A practice for every possibility.</h2></div><p className="max-w-sm text-sm leading-7 text-muted-foreground">From finding the right words to speaking on the spot, build confidence through doing.</p></div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{modules.map((module, index) => <Card key={module.name} className={`studio-module-card group flex flex-col p-6 ${module.theme}`}><div className="mb-8 flex items-start justify-between"><span className="rounded-2xl bg-module/10 p-3 text-module"><StudioIcon name={module.name} className="size-12" /></span><span className="font-heading text-xs text-muted-foreground">0{index + 1}</span></div><p className="text-[10px] font-bold uppercase tracking-wider text-module">{module.label}</p><h3 className="mb-3 mt-2 font-heading text-xl font-semibold">{module.title}</h3><p className="mb-6 flex-1 text-sm leading-7 text-muted-foreground">{module.description}</p><Button variant="ghost" asChild className="justify-between px-0 text-module hover:bg-transparent"><Link href="/signup">Give it a go <ArrowRight className="size-4" /></Link></Button></Card>)}</div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+          <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr]"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-ai">GROW WITH EVERY SESSION</p><h2 className="mt-3 font-heading text-3xl font-semibold leading-tight sm:text-4xl">Small steps.<br /><span className="text-ai">A stronger voice.</span></h2><p className="mt-5 max-w-sm text-sm leading-7 text-muted-foreground">A supportive loop of practice, insight, and progress. Make room for learning, one session at a time.</p></div><div className="space-y-4">{[{ icon: 'echo', title: 'Practice with a purpose', text: 'Choose a module and work through a focused speaking challenge.' }, { icon: 'idea', title: 'Discover what to improve', text: 'Review your response and the feedback available for your exercise.' }, { icon: 'achievement', title: 'See your effort add up', text: 'Follow your existing session milestones, XP, and learning progress.' }].map((item, index) => <Card key={item.title} className="group flex items-center gap-5 p-5 sm:p-6"><StudioIcon name={item.icon as StudioIconName} className="size-12 text-ai" /><div><p className="mb-1 text-[10px] font-semibold text-muted-foreground">STEP 0{index + 1}</p><h3 className="font-heading text-lg font-semibold">{item.title}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.text}</p></div></Card>)}</div></div>
+          <div className="voice-canvas mt-16 rounded-[2rem] border border-primary/15 px-6 py-10 text-center sm:px-12"><h2 className="font-heading text-3xl font-semibold sm:text-4xl">Your next conversation starts here.</h2><p className="mb-7 mt-3 text-muted-foreground">Bring your curiosity. We’ll bring the practice.</p><Button size="lg" asChild><Link href="/signup">Start learning <ArrowRight /></Link></Button></div>
+        </section>
+      </main>
+      <footer className="border-t border-border px-5 py-8 sm:px-8"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 sm:flex-row"><Brand /><p className="text-xs text-muted-foreground">© 2026 SpeakUp. Make space for your voice.</p><Link href="/login" className="text-sm font-semibold text-primary">Already learning? Sign in <span aria-hidden="true">↗</span></Link></div></footer>
     </div>
   )
 }

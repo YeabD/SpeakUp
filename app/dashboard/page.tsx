@@ -1,54 +1,57 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { VoiceIcon as Mic, StreakIcon as Flame, AchievementIcon as Award, EchoIcon, IdeaIcon, VolleyIcon, CompressIcon } from '@/components/icons/studio-icons'
+import { Brand } from '@/components/shared/brand'
+import { Card } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/client'
 import SessionRunner from '@/components/modules/SessionRunner'
-import {
-  Mic,
-  Lock,
-  Bell,
-  Settings,
-  Flame,
-  Award,
-  Zap,
-  Volume2,
-  Repeat,
-  MessageSquare,
-  Timer,
-  CheckCircle2,
-  ArrowRight,
-  User as UserIcon,
-} from 'lucide-react'
+import { Lock, Bell, Settings, Zap, CheckCircle2, ArrowRight, User as UserIcon, Fingerprint } from 'lucide-react'
 
 const MODULE_CONFIGS = [
+  {
+    id: 'alibi',
+    title: 'Alibi Interrogation',
+    description: 'Defend your timeline, connect the clues, and tell a convincing story in English.',
+    icon: Fingerprint,
+    theme: 'studio-alibi',
+    color: 'from-warning/20 to-coral/20 text-warning border-warning/30',
+  },
   {
     id: 'shadowing',
     title: 'Echo-Shadowing',
     description: 'Master cadence and intonation matching through real-time audio repetition.',
-    icon: Volume2,
-    color: 'from-blue-500/20 to-indigo-500/20 text-blue-400 border-blue-500/30',
+    icon: EchoIcon,
+    theme: 'studio-shadowing',
+    color: 'from-info/20 to-primary/20 text-info border-info/30',
   },
   {
     id: 'circumlocution',
     title: 'Circumlocution',
     description: 'Explain complex concepts instantly when missing target vocabulary words.',
-    icon: Repeat,
-    color: 'from-purple-500/20 to-pink-500/20 text-purple-400 border-purple-500/30',
+    icon: IdeaIcon,
+    theme: 'studio-circumlocution',
+    color: 'from-ai/20 to-ai/20 text-ai border-ai/30',
   },
   {
     id: 'ping_pong',
     title: 'Conversational Ping-Pong',
     description: 'Maintain dynamic turn-taking rhythm under cognitive interruption.',
-    icon: MessageSquare,
-    color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30',
+    icon: VolleyIcon,
+    theme: 'studio-ping-pong',
+    color: 'from-success/20 to-success/20 text-success border-success/30',
   },
   {
     id: 'compressor',
     title: '4/3/2 Compressor',
     description: 'Deliver escalating speech compression under time pressure: 4m -> 3m -> 2m.',
-    icon: Timer,
-    color: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30',
+    icon: CompressIcon,
+    theme: 'studio-compressor',
+    color: 'from-warning/20 to-coral/20 text-warning border-warning/30',
   },
 ]
 
@@ -118,6 +121,10 @@ export default function DashboardPage() {
   }, [router, supabase])
 
   const handleOpenModule = (mod: any) => {
+    if (mod.id === 'alibi') {
+      router.push('/practice/alibi')
+      return
+    }
     if (mod.id === 'shadowing') {
       router.push('/practice/shadowing')
       return
@@ -144,9 +151,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-zinc-950 items-center justify-center text-zinc-400">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      <div className="flex studio-page min-h-screen bg-background items-center justify-center text-muted-foreground">
+        <div role="status" className="flex items-center gap-3">
+          <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           <span>Loading your dashboard...</span>
         </div>
       </div>
@@ -155,61 +162,58 @@ export default function DashboardPage() {
 
   // Calculate total completed modules / daily quest count
   const completedModulesCount = Object.values(moduleProgress).filter((p: any) => p.completed).length
-  const isOpenMicUnlocked = completedModulesCount >= 4 || (dailyQuests && dailyQuests.completed)
+  const coreModulesCompleted = ['shadowing', 'circumlocution', 'ping_pong', 'compressor'].filter(id => moduleProgress[id]?.completed).length
+  const isOpenMicUnlocked = coreModulesCompleted >= 4 || (dailyQuests && dailyQuests.completed)
+  const dailyModulesCount = ['shadowing_count', 'circumlocution_count', 'ping_pong_count', 'compressor_count'].filter((field) => (dailyQuests?.[field] || 0) > 0).length
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-50 font-sans">
+    <div className="flex flex-col studio-page min-h-screen bg-background text-foreground font-sans">
       {/* Top Navigation Bar */}
-      <header className="flex items-center justify-between px-6 lg:px-16 py-4 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-10 py-4 border-b border-border bg-background/90 backdrop-blur-xl sticky top-0 z-40">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <Mic className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold tracking-tight text-white hidden sm:inline">
-              SpeakUp
-            </span>
-          </div>
+          <Brand />
 
           {/* Active Language & Fluency Belt Badges */}
           <div className="hidden md:flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-300">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-card border border-border text-xs font-medium text-foreground">
               🌐 <span className="capitalize">{profile?.active_language || 'English'}</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-xs font-semibold text-indigo-300">
-              <Award className="w-3.5 h-3.5 text-indigo-400" /> Blue Belt
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-xs font-semibold text-primary">
+              <Award className="w-3.5 h-3.5 text-primary" /> Blue Belt
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-full text-xs font-medium text-amber-400">
-            <Flame className="w-3.5 h-3.5 fill-amber-400" />
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-full text-xs font-medium text-warning">
+            <Flame className="w-3.5 h-3.5 fill-warning" />
             <span>{profile?.streak_count || 0} Day Streak</span>
           </div>
 
-          <button
+          <Button variant="ghost"
             type="button"
-            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors relative"
+            className="p-2 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground transition-colors relative"
             title="Notifications"
+            aria-label="Notifications"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-          </button>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary studio-attention" />
+          </Button>
 
-          <button
+          <Button variant="ghost"
             type="button"
-            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground transition-colors"
             title="Settings"
+            aria-label="Settings"
           >
             <Settings className="w-4 h-4" />
-          </button>
+          </Button>
 
-          <div className="flex items-center gap-2.5 pl-2 border-l border-zinc-800">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-700 flex items-center justify-center text-white text-xs font-bold border border-zinc-700">
+          <div className="flex items-center gap-2.5 pl-2 border-l border-border">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-muted to-muted flex items-center justify-center text-foreground text-xs font-bold border border-border">
               {profile?.username?.[0]?.toUpperCase() || <UserIcon className="w-4 h-4" />}
             </div>
-            <span className="text-sm font-semibold text-zinc-200 hidden lg:inline">
+            <span className="text-sm font-semibold text-foreground hidden lg:inline">
               {profile?.username || 'Speaker'}
             </span>
           </div>
@@ -217,68 +221,74 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 px-6 lg:px-16 py-10 max-w-7xl mx-auto w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 px-4 sm:px-8 py-8 sm:py-10 max-w-7xl mx-auto w-full">
         {/* Welcome Banner */}
-        <div className="mb-10 p-8 rounded-3xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-zinc-900 border border-indigo-500/20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="voice-canvas mb-7 p-6 sm:p-9 rounded-[2rem] border border-primary/15 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div>
-              <span className="text-xs font-semibold text-indigo-400 tracking-wider uppercase mb-2 block">
-                Daily Training Hub
+              <span className="text-xs font-semibold text-primary tracking-wider uppercase mb-2 block">
+                YOUR DAILY DOSE OF POSSIBILITY
               </span>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">
+              <h1 className="text-3xl sm:text-4xl font-semibold text-foreground tracking-tight mb-3">
                 Welcome back, {profile?.username || 'Speaker'}! 👋
               </h1>
-              <p className="text-zinc-400 text-sm max-w-xl">
-                Complete your daily module sessions to maintain your streak, earn XP, and unlock unscripted Open Mic rooms.
+              <p className="text-muted-foreground text-sm max-w-xl">
+                Make a little room for your voice today. Explore, practice, and let your confidence grow with every session.
               </p>
             </div>
-            <div className="flex items-center gap-4 bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl backdrop-blur-sm">
-              <div className="h-12 w-12 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
+            <div className="flex items-center gap-4 bg-card/80 border border-border p-4 rounded-2xl backdrop-blur-sm">
+              <div className="h-12 w-12 rounded-xl bg-warning/10 border border-warning/25 flex items-center justify-center text-warning">
                 <Zap className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-xs text-zinc-400 font-medium block">Total XP Earned</span>
-                <span className="text-xl font-bold text-white">{profile?.total_xp || 0} XP</span>
+                <span className="text-xs text-muted-foreground font-medium block">Total XP Earned</span>
+                <span className="text-xl font-bold text-foreground">{profile?.total_xp || 0} XP</span>
               </div>
             </div>
           </div>
         </div>
 
+        <div className="mb-7 grid gap-4 sm:grid-cols-3">
+          <Card className="group flex items-center gap-4 p-5"><Flame className="size-12 text-warning" /><div><p className="text-xs text-muted-foreground">Keep showing up</p><p className="font-heading text-2xl font-semibold">{profile?.streak_count || 0} <span className="text-sm font-medium text-warning">day streak</span></p></div></Card>
+          <Card className="group flex items-center gap-4 p-5"><Award className="size-12 text-ai" /><div><p className="text-xs text-muted-foreground">Milestones reached</p><p className="font-heading text-2xl font-semibold">{completedModulesCount}<span className="ml-2 text-sm font-medium text-muted-foreground">completed modules</span></p></div></Card>
+          <Card className="p-5"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs font-medium text-muted-foreground">Today’s practice</p><p className="font-heading text-lg font-semibold text-success">{dailyModulesCount} / 4</p></div><Progress value={dailyModulesCount / 4 * 100} aria-label="Today's completed practice modules" className="text-success" /><p className="mt-2 text-xs text-muted-foreground">Every session moves you forward.</p></Card>
+        </div>
+
         {/* Open Mic Card (Unlocked or Locked) */}
-        <div className={`mb-12 p-6 sm:p-8 rounded-3xl bg-zinc-900/90 border relative overflow-hidden transition-all ${isOpenMicUnlocked ? 'border-emerald-500/50 hover:border-emerald-500' : 'border-zinc-800 group hover:border-zinc-700'}`}>
-          <div className={`absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 rounded-full blur-2xl pointer-events-none ${isOpenMicUnlocked ? 'bg-emerald-500/10' : 'bg-rose-500/5'}`} />
+        <div className={`mb-12 p-6 sm:p-8 rounded-3xl bg-card/90 border relative overflow-hidden transition-all ${isOpenMicUnlocked ? 'border-success/50 hover:border-success' : 'border-border group hover:border-border'}`}>
+          <div className={`absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 rounded-full blur-2xl pointer-events-none ${isOpenMicUnlocked ? 'bg-success/10' : 'bg-destructive/5'}`} />
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
             <div className="flex items-start gap-5">
-              <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center shrink-0 ${isOpenMicUnlocked ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}>
-                {isOpenMicUnlocked ? <Mic className="w-7 h-7" /> : <Lock className="w-7 h-7 text-amber-400" />}
+              <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center shrink-0 ${isOpenMicUnlocked ? 'bg-success/10 border-success/30 text-success' : 'bg-muted border-border text-muted-foreground'}`}>
+                {isOpenMicUnlocked ? <Mic className="w-7 h-7" /> : <Lock className="w-7 h-7 text-warning" />}
               </div>
               <div>
-                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold mb-2 ${isOpenMicUnlocked ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/25 text-amber-400'}`}>
+                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold mb-2 ${isOpenMicUnlocked ? 'bg-success/10 border border-success/25 text-success' : 'bg-warning/10 border border-warning/25 text-warning'}`}>
                   {isOpenMicUnlocked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3" />}
                   {isOpenMicUnlocked ? 'Unlocked & Ready' : 'Locked Feature'}
                 </div>
-                <h2 className="text-xl font-bold text-white mb-1">Open Mic (Free AI Chat)</h2>
-                <p className="text-zinc-400 text-sm">
+                <h2 className="text-xl font-bold text-foreground mb-1">Open Mic (Free AI Chat)</h2>
+                <p className="text-muted-foreground text-sm">
                   {isOpenMicUnlocked ? 'Practice unscripted conversation with real-time AI feedback.' : 'Complete sessions across modules to unlock Open Mic'}
                 </p>
               </div>
             </div>
-            <button
+            <Button variant="ghost"
               onClick={() => isOpenMicUnlocked && router.push('/open-mic')}
               disabled={!isOpenMicUnlocked}
-              className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-2xl text-sm transition-all ${isOpenMicUnlocked ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 cursor-pointer' : 'bg-zinc-800/50 border border-zinc-700/50 text-zinc-500 cursor-not-allowed'}`}
+              className={`flex items-center justify-center gap-2 font-semibold px-6 py-3.5 rounded-2xl text-sm transition-all ${isOpenMicUnlocked ? 'bg-success hover:bg-success text-foreground shadow-lg shadow-success/20 cursor-pointer' : 'bg-muted/50 border border-border/50 text-muted-foreground cursor-not-allowed'}`}
             >
               {isOpenMicUnlocked ? 'Launch Open Mic' : 'Locked'} {isOpenMicUnlocked ? <ArrowRight className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Daily Quests & Modules Grid */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white tracking-tight">Core Practice Modules</h2>
-            <span className="text-xs text-zinc-400 font-medium">
+            <h2 className="text-xl font-bold text-foreground tracking-tight">Core Practice Modules</h2>
+            <span className="text-xs text-muted-foreground font-medium">
               Daily Quests: {((dailyQuests?.shadowing_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.circumlocution_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.ping_pong_count || 0) > 0 ? 1 : 0) + ((dailyQuests?.compressor_count || 0) > 0 ? 1 : 0)}/4 Modules Today
             </span>
           </div>
@@ -293,37 +303,38 @@ export default function DashboardPage() {
               return (
                 <div
                   key={mod.id}
-                  className="p-6 sm:p-8 rounded-3xl bg-zinc-900 border border-zinc-800 hover:border-indigo-500/50 transition-all flex flex-col justify-between group"
+                    className={`studio-module-card ${mod.theme} p-6 sm:p-8 rounded-3xl bg-card border border-border flex flex-col justify-between group`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-6">
-                      <div className={`h-12 w-12 rounded-2xl border flex items-center justify-center ${mod.color}`}>
-                        <IconComponent className="w-6 h-6" />
+                      <div className="size-20 rounded-3xl bg-module/10 text-module flex items-center justify-center">
+                        <IconComponent className="size-14" />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full bg-zinc-950 border border-zinc-800 text-xs font-semibold text-zinc-300">
+                        <span className="px-3 py-1 rounded-full bg-background border border-border text-xs font-semibold text-foreground">
                           Level {currentLevel}
                         </span>
-                        <span className="px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-xs font-semibold text-indigo-300">
+                        <span className="px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-xs font-semibold text-primary">
                           {completedSessions}/15 completed
                         </span>
                       </div>
                     </div>
 
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">
+                    <h3 className="text-2xl font-semibold text-foreground mb-2 group-hover:text-module transition-colors">
                       {mod.title}
                     </h3>
-                    <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-6">
                       {mod.description}
                     </p>
                   </div>
 
-                  <button
+                  <div className="mb-5"><div className="mb-2 flex justify-between text-xs text-muted-foreground"><span>Level {currentLevel} journey</span><span>{completedSessions} / 15 sessions</span></div><Progress value={completedSessions / 15 * 100} aria-label={`${mod.title} level progress`} className="text-module" /></div>
+                  <Button variant="ghost"
                     onClick={() => handleOpenModule(mod)}
-                    className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-indigo-600 text-zinc-200 hover:text-white font-semibold py-3.5 px-4 rounded-2xl border border-zinc-700 hover:border-indigo-500 transition-all text-sm group/btn"
+                    className="w-full flex items-center justify-center gap-2 bg-muted hover:bg-primary text-foreground hover:text-foreground font-semibold py-3.5 px-4 rounded-2xl border border-border hover:border-primary transition-all text-sm group/btn"
                   >
                     Start Session <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                  </button>
+                  </Button>
                 </div>
               )
             })}

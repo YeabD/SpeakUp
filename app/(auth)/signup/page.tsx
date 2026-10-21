@@ -1,10 +1,17 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Brand } from '@/components/shared/brand'
+import { AuthArt } from '@/components/shared/auth-art'
+import { Card } from '@/components/ui/card'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/src/lib/supabase/client'
-import { Mic, ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 
 export default function SignupPage() {
   const [username, setUsername] = useState('')
@@ -64,32 +71,30 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-50 font-sans items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <div className="auth-shell flex flex-col studio-page min-h-screen bg-background text-foreground font-sans items-center justify-center p-6">
+      <div className="grid w-full max-w-6xl items-stretch gap-10 lg:grid-cols-2">
+        <AuthArt />
+        <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-md flex-col justify-center py-5">
         {/* Logo Header */}
         <div className="flex flex-col items-center mb-8">
-          <Link href="/" className="flex items-center gap-3 mb-4 group">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <Mic className="w-6 h-6 text-white" />
-            </div>
-          </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Create your account</h1>
-          <p className="text-zinc-400 text-sm mt-2">Start your journey to elite public speaking</p>
+          <Brand className="mb-7" />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Create your account</h1>
+          <p className="text-muted-foreground text-sm mt-2">A fresh start for your voice. Let’s make it count.</p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+        <Card className="p-5 shadow-sm sm:p-8">
           {error && (
-            <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-400 text-sm">
+            <div role="alert" className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/25 text-destructive text-sm">
               {error}
             </div>
           )}
 
           {/* Google OAuth Button */}
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 font-medium py-3.5 px-4 rounded-2xl border border-zinc-700 transition-all hover:border-zinc-600 mb-6"
+            className="w-full flex items-center justify-center gap-3 bg-muted hover:bg-muted text-foreground font-medium py-3.5 px-4 rounded-2xl border border-border transition-all hover:border-border mb-6"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -110,61 +115,58 @@ export default function SignupPage() {
               />
             </svg>
             Continue with Google
-          </button>
+          </Button>
 
           <div className="flex items-center my-6">
-            <div className="flex-1 border-t border-zinc-800" />
-            <span className="px-3 text-xs text-zinc-500 uppercase tracking-wider">or with email</span>
-            <div className="flex-1 border-t border-zinc-800" />
+            <div className="flex-1 border-t border-border" />
+            <span className="px-3 text-xs text-muted-foreground uppercase tracking-wider">or with email</span>
+            <div className="flex-1 border-t border-border" />
           </div>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+              <Label htmlFor="signup-username" className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
                 Username
-              </label>
-              <input
-                type="text"
+              </Label>
+              <Input id="signup-username" name="username" autoComplete="username" type="text"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="alex_speaker"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+                className="w-full bg-background border border-border rounded-2xl px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+              <Label htmlFor="signup-email" className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
                 Email Address
-              </label>
-              <input
-                type="email"
+              </Label>
+              <Input id="signup-email" name="email" autoComplete="email" type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="alex@example.com"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+                className="w-full bg-background border border-border rounded-2xl px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+              <Label htmlFor="signup-password" className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
                 Password
-              </label>
-              <input
-                type="password"
+              </Label>
+              <Input id="signup-password" name="password" autoComplete="new-password" type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+                placeholder="Enter your password"
+                className="w-full bg-background border border-border rounded-2xl px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors text-sm"
               />
             </div>
 
-            <button
+            <Button variant="ghost"
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 px-4 rounded-2xl shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.01] mt-6 text-sm disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary text-foreground font-semibold py-3.5 px-4 rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] mt-6 text-sm disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -175,17 +177,18 @@ export default function SignupPage() {
                   Create Account <ArrowRight className="w-4 h-4" />
                 </>
               )}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
 
         {/* Footer Link */}
-        <p className="text-center text-sm text-zinc-500 mt-8">
+        <p className="text-center text-sm text-muted-foreground mt-8">
           Already have an account?{' '}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
+          <Link href="/login" className="text-primary hover:text-primary font-medium">
             Sign in
           </Link>
         </p>
+        </main>
       </div>
     </div>
   )
