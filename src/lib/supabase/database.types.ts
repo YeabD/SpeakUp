@@ -1,3 +1,5 @@
+import type { CaseFile, Evaluation, Turn } from '@/src/lib/alibi/contracts'
+
 export type Json =
   | string
   | number
@@ -9,6 +11,18 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      alibi_attempts: {
+        Row: { id: string; user_id: string; session_number: number; case_file: CaseFile; turns: Turn[]; question: string | null; evaluation: Evaluation | null; created_at: string }
+        Insert: { id: string; user_id: string; session_number: number; case_file: CaseFile; turns?: Turn[]; question?: string | null; evaluation?: Evaluation | null; created_at?: string }
+        Update: { question?: string | null; turns?: Turn[]; evaluation?: Evaluation | null }
+        Relationships: []
+      }
+      alibi_completions: {
+        Row: { user_id: string; session_number: number; attempt_id: string; score: number; created_at: string }
+        Insert: { user_id: string; session_number: number; attempt_id: string; score: number; created_at?: string }
+        Update: { score?: number }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -141,6 +155,7 @@ export interface Database {
           circumlocution_count: number
           ping_pong_count: number
           compressor_count: number
+          alibi_count: number
           created_at: string
         }
         Insert: {
@@ -154,6 +169,7 @@ export interface Database {
           circumlocution_count?: number
           ping_pong_count?: number
           compressor_count?: number
+          alibi_count?: number
           created_at?: string
         }
         Update: {
@@ -167,6 +183,7 @@ export interface Database {
           circumlocution_count?: number
           ping_pong_count?: number
           compressor_count?: number
+          alibi_count?: number
           created_at?: string
         }
         Relationships: []
@@ -206,7 +223,10 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      alibi_mutate: {
+        Args: { p_user: string; p_id: string; p_action: string; p_payload: Json }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
